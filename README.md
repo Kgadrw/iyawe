@@ -43,7 +43,7 @@ npm install
 3. Set up environment variables:
 Create a `.env` file in the root directory:
 ```env
-DATABASE_URL="mongodb+srv://kalisagad05:Kigali20@@cluster0.b53bq.mongodb.net/iyawe?retryWrites=true&w=majority"
+DATABASE_URL="database connection"
 JWT_SECRET="your-secret-key-change-in-production"
 ```
 
