@@ -79,11 +79,19 @@ export function ReportFoundModal({ open, onOpenChange }: ReportFoundModalProps) 
       const data = await response.json()
 
       if (!response.ok) {
-        toast({
-          title: 'Error',
-          description: data.error || 'Failed to upload document',
-          variant: 'destructive',
-        })
+        if (response.status === 401) {
+          toast({
+            title: 'Authentication Required',
+            description: 'Please log in first to report a found document',
+            variant: 'destructive',
+          })
+        } else {
+          toast({
+            title: 'Error',
+            description: data.error || 'Failed to upload document',
+            variant: 'destructive',
+          })
+        }
         return
       }
 
@@ -105,10 +113,11 @@ export function ReportFoundModal({ open, onOpenChange }: ReportFoundModalProps) 
       setImageFile(null)
       setImagePreview(null)
       onOpenChange(false)
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Report submission error:', error)
       toast({
         title: 'Error',
-        description: 'An unexpected error occurred',
+        description: error?.message || 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
       })
     } finally {

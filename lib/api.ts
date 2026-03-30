@@ -28,14 +28,20 @@ export async function apiRequest(
         },
   }
 
-  return fetch(url, {
-    ...defaultOptions,
-    ...options,
-    headers: {
-      ...defaultOptions.headers,
-      ...options.headers,
-    },
-  })
+  try {
+    const response = await fetch(url, {
+      ...defaultOptions,
+      ...options,
+      headers: {
+        ...defaultOptions.headers,
+        ...options.headers,
+      },
+    })
+    return response
+  } catch (error: any) {
+    console.error(`API request failed to ${url}:`, error)
+    throw new Error(`Failed to connect to ${endpoint}. Please ensure the server is running.`)
+  }
 }
 
 /**
