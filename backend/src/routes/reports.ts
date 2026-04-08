@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express'
 import multer from 'multer'
 import { collections } from '../lib/db'
 import { findMatchesForLostReport, findMatchesForFoundReport } from '../lib/matching'
-import { authenticate, AuthRequest, getUserIdFromToken } from '../lib/middleware'
+import { authenticate, AuthRequest, getUserIdFromToken, requireRoles } from '../lib/middleware'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
 
@@ -158,11 +158,13 @@ router.get('/lost', authenticate, async (req: AuthRequest, res: Response) => {
 })
 
 // POST /api/reports/found
-// Authentication is optional - allow anonymous uploads with contact info
-router.post('/found', upload.single('image'), async (req: Request, res: Response) => {
+// SUBIZWA-aligned policy: only authorized roles can register found credentials
+router.post('/found', requireRoles(['ADMIN', 'OFFICER', 'INSTITUTION']), upload.single('image'), async (req: Request, res: Response) => {
   try {
-    // Try to get user from token (optional)
     const userId = await getUserIdFromToken(req)
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
     
     // Handle both JSON and FormData
     let bodyData: any = {}
@@ -186,12 +188,7 @@ router.post('/found', upload.single('image'), async (req: Request, res: Response
     const data = foundReportSchema.parse(bodyData)
     const now = new Date()
 
-    // Validate: Either userId (logged in) or contact info (anonymous) must be provided
-    if (!userId && (!data.uploaderName || !data.uploaderEmail)) {
-      return res.status(400).json({ 
-        error: 'Please provide your name and email, or login to upload' 
-      })
-    }
+    // In this mode, the authenticated account is the registrar (officer/institution personnel).
 
     // Convert image to base64 if provided
     let imageBase64: string | undefined
@@ -211,12 +208,10 @@ router.post('/found', upload.single('image'), async (req: Request, res: Response
       updatedAt: now,
     }
 
-    // Add userId if logged in
-    if (userId) {
-      foundReport.userId = new ObjectId(userId)
-    }
+    // Registrar account (RNP admin/officer or approved institution personnel)
+    foundReport.userId = new ObjectId(userId)
 
-    // Add uploader contact info (always store, even for logged-in users)
+    // Optional registrar contact info (kept for operational follow-up)
     if (data.uploaderName) {
       foundReport.uploaderName = data.uploaderName
     }

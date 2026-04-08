@@ -92,3 +92,20 @@ export async function requireAdmin(req: AuthRequest, res: Response, next: NextFu
     return res.status(401).json({ error: 'Unauthorized', details: error.message })
   }
 }
+
+export function requireRoles(allowedRoles: string[]) {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = await getUserFromToken(req)
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
+    if (!allowedRoles.includes(user.role)) {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+
+    req.user = user
+    req.userId = user.userId
+    next()
+  }
+}
