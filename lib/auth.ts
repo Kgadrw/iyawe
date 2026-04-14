@@ -5,6 +5,7 @@ import { ObjectId } from 'mongodb'
 export enum UserRole {
   USER = 'USER',
   INSTITUTION = 'INSTITUTION',
+  OFFICER = 'OFFICER',
   ADMIN = 'ADMIN',
 }
 

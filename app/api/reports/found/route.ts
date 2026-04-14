@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { collections } from '@/lib/mongodb'
 import { findMatchesForFoundReport, DocumentType } from '@/lib/matching'
-import { getUserIdFromToken } from '@/lib/middleware'
+import { getUserFromToken, getUserIdFromToken } from '@/lib/middleware'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
 
@@ -18,6 +18,11 @@ export async function POST(request: NextRequest) {
     const userId = await getUserIdFromToken(request)
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = await getUserFromToken(request)
+    if (!user || (user.role !== 'ADMIN' && user.role !== 'OFFICER' && user.role !== 'INSTITUTION')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = await request.json()

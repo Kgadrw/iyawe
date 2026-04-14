@@ -16,7 +16,7 @@ export interface User {
   passwordHash: string
   name: string
   phone?: string
-  role: 'USER' | 'INSTITUTION' | 'ADMIN'
+  role: 'USER' | 'INSTITUTION' | 'OFFICER' | 'ADMIN'
   createdAt: Date
   updatedAt: Date
 }
@@ -26,7 +26,7 @@ export async function createUser(
   password: string,
   name: string,
   phone?: string,
-  role: 'USER' | 'INSTITUTION' | 'ADMIN' = 'USER'
+  role: 'USER' | 'INSTITUTION' | 'OFFICER' | 'ADMIN' = 'USER'
 ): Promise<User> {
   const passwordHash = await hashPassword(password)
   const now = new Date()
