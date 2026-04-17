@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createUser } from '@/lib/auth'
+import { createUser, UserRole } from '@/lib/auth'
 import { z } from 'zod'
+import { writeAuditLog } from '@/lib/audit'
+import { ObjectId } from 'mongodb'
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -30,8 +32,25 @@ export async function POST(request: NextRequest) {
       data.password,
       data.name,
       data.phone,
-      data.role === 'INSTITUTION' ? 'INSTITUTION' : 'USER'
+      data.role === 'INSTITUTION' ? UserRole.INSTITUTION : UserRole.USER
     )
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Failed to create user. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    await writeAuditLog({
+      actorUserId: new ObjectId(user.id),
+      actorRole: (user.role as any) || null,
+      action: 'AUTH_REGISTER',
+      entityType: 'USER',
+      entityId: new ObjectId(user.id),
+      message: 'User registered',
+      metadata: { email: user.email, role: user.role },
+    })
 
     return NextResponse.json(
       { 

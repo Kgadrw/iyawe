@@ -4,6 +4,7 @@ import { findMatchesForFoundReport, DocumentType } from '@/lib/matching'
 import { getUserFromToken, getUserIdFromToken } from '@/lib/middleware'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
+import { writeAuditLog } from '@/lib/audit'
 
 const foundReportSchema = z.object({
   documentType: z.nativeEnum(DocumentType),
@@ -44,6 +45,16 @@ export async function POST(request: NextRequest) {
 
     const foundReport = await foundCollection.findOne({ _id: result.insertedId })
 
+    await writeAuditLog({
+      actorUserId: new ObjectId(userId),
+      actorRole: user.role as any,
+      action: 'REPORT_FOUND_CREATE',
+      entityType: 'FOUND_REPORT',
+      entityId: result.insertedId as any,
+      message: 'Found report created',
+      metadata: { documentType: data.documentType, hasDocumentNumber: !!data.documentNumber, hasImage: !!data.image },
+    })
+
     // Try to find matches
     const matches = await findMatchesForFoundReport(result.insertedId.toString())
 
@@ -55,9 +66,9 @@ export async function POST(request: NextRequest) {
     
     if (exactMatches.length > 0) {
       // Notify admin about exact matches
-      for (const match of exactMatches) {
-        const lostReport = await collections.lostReports().findOne({ _id: match.lostReportId })
-        const foundReportDoc = await collections.foundReports().findOne({ _id: match.foundReportId })
+      for (const match of exactMatches as any[]) {
+        const lostReport = await (await collections.lostReports()).findOne({ _id: match.lostReportId })
+        const foundReportDoc = await (await collections.foundReports()).findOne({ _id: match.foundReportId })
         
         if (lostReport && foundReportDoc) {
           const documentTypeLabel = foundReportDoc.documentType.replace(/_/g, ' ')

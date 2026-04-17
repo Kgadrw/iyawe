@@ -42,7 +42,7 @@ export async function createUser(
 
 export async function getUserByEmail(email: string) {
   const usersCollection = await collections.users()
-  const user = await usersCollection.findOne({ email })
+  const user = (await usersCollection.findOne({ email })) as any
   
   if (!user) {
     return null
@@ -68,7 +68,7 @@ export async function getUserByEmail(email: string) {
 
 export async function getUserById(id: string) {
   const usersCollection = await collections.users()
-  const user = await usersCollection.findOne({ _id: new ObjectId(id) })
+  const user = (await usersCollection.findOne({ _id: new ObjectId(id) })) as any
   
   if (!user) {
     return null

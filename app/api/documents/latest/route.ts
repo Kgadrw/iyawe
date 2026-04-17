@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
     }
     // Add nearby filter if requested (documents with location)
     if (filter === 'nearby') {
-      lostFilter.lostLocation = { $exists: true, $ne: null, $ne: '' }
-      foundFilter.foundLocation = { $exists: true, $ne: null, $ne: '' }
+      lostFilter.lostLocation = { $exists: true, $nin: [null, ''] }
+      foundFilter.foundLocation = { $exists: true, $nin: [null, ''] }
     }
 
     // Fetch lost reports

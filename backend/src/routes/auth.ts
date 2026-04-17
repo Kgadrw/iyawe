@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express'
 import { createUser, getUserByEmail, verifyPassword } from '../lib/auth'
 import { z } from 'zod'
 import { SignJWT } from 'jose'
+import { writeAuditLog } from '../lib/audit'
+import { ObjectId } from 'mongodb'
 
 const router = Router()
 
@@ -38,6 +40,16 @@ router.post('/register', async (req: Request, res: Response) => {
       data.phone,
       data.role === 'INSTITUTION' ? 'INSTITUTION' : 'USER'
     )
+
+    await writeAuditLog({
+      actorUserId: user._id ? new ObjectId(user._id) : null,
+      actorRole: user.role,
+      action: 'AUTH_REGISTER',
+      entityType: 'USER',
+      entityId: user._id ? new ObjectId(user._id) : null,
+      message: 'User registered',
+      metadata: { email: user.email, role: user.role },
+    })
 
     return res.status(201).json({
       message: 'User created successfully',
@@ -99,6 +111,16 @@ router.post('/login', async (req: Request, res: Response) => {
       path: '/',
     })
 
+    await writeAuditLog({
+      actorUserId: user._id ? new ObjectId(user._id) : null,
+      actorRole: user.role,
+      action: 'AUTH_LOGIN',
+      entityType: 'USER',
+      entityId: user._id ? new ObjectId(user._id) : null,
+      message: 'User logged in',
+      metadata: { email: user.email, role: user.role },
+    })
+
     return res.json({
       message: 'Login successful',
       user: {
@@ -120,6 +142,15 @@ router.post('/login', async (req: Request, res: Response) => {
 // POST /api/auth/logout
 router.post('/logout', async (req: Request, res: Response) => {
   res.clearCookie('token', { path: '/' })
+  // Can't reliably identify the user here without verifying token again.
+  await writeAuditLog({
+    actorUserId: null,
+    actorRole: null,
+    action: 'AUTH_LOGOUT',
+    entityType: 'SYSTEM',
+    entityId: null,
+    message: 'User logged out',
+  })
   return res.json({ message: 'Logged out successfully' })
 })
 

@@ -5,6 +5,7 @@ import { findMatchesForLostReport, findMatchesForFoundReport } from '../lib/matc
 import { authenticate, AuthRequest, getUserIdFromToken, requireRoles } from '../lib/middleware'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
+import { writeAuditLog } from '../lib/audit'
 
 // Configure multer for memory storage
 const upload = multer({
@@ -84,6 +85,16 @@ router.post('/lost', async (req: Request, res: Response) => {
 
     const result = await collections.lostReports().insertOne(lostReport)
     const insertedReport = { ...lostReport, _id: result.insertedId }
+
+    await writeAuditLog({
+      actorUserId: userId ? new ObjectId(userId) : null,
+      actorRole: req.headers.authorization ? 'AUTHENTICATED' : null,
+      action: 'REPORT_LOST_CREATE',
+      entityType: 'LOST_REPORT',
+      entityId: result.insertedId as any,
+      message: 'Lost report created',
+      metadata: { documentType: data.documentType, hasDocumentNumber: !!data.documentNumber },
+    })
 
     // Try to find matches
     const matches = await findMatchesForLostReport(result.insertedId.toString())
@@ -224,6 +235,16 @@ router.post('/found', requireRoles(['ADMIN', 'OFFICER', 'INSTITUTION']), upload.
 
     const result = await collections.foundReports().insertOne(foundReport)
     const insertedReport = { ...foundReport, _id: result.insertedId }
+
+    await writeAuditLog({
+      actorUserId: new ObjectId(userId),
+      actorRole: 'OFFICER_OR_INSTITUTION',
+      action: 'REPORT_FOUND_CREATE',
+      entityType: 'FOUND_REPORT',
+      entityId: result.insertedId as any,
+      message: 'Found report created',
+      metadata: { documentType: data.documentType, hasDocumentNumber: !!data.documentNumber, hasImage: !!imageBase64 },
+    })
 
     // Try to find matches
     const matches = await findMatchesForFoundReport(result.insertedId.toString())

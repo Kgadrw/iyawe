@@ -4,6 +4,7 @@ import { findMatchesForLostReport, DocumentType } from '@/lib/matching'
 import { getUserIdFromToken } from '@/lib/middleware'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
+import { writeAuditLog } from '@/lib/audit'
 
 const lostReportSchema = z.object({
   documentType: z.nativeEnum(DocumentType),
@@ -37,6 +38,16 @@ export async function POST(request: NextRequest) {
     })
 
     const lostReport = await lostCollection.findOne({ _id: result.insertedId })
+
+    await writeAuditLog({
+      actorUserId: new ObjectId(userId),
+      actorRole: null,
+      action: 'REPORT_LOST_CREATE',
+      entityType: 'LOST_REPORT',
+      entityId: result.insertedId as any,
+      message: 'Lost report created',
+      metadata: { documentType: data.documentType, hasDocumentNumber: !!data.documentNumber },
+    })
 
     // Try to find matches
     const matches = await findMatchesForLostReport(result.insertedId.toString())

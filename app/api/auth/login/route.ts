@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserByEmail, verifyPassword } from '@/lib/auth'
 import { z } from 'zod'
 import { SignJWT } from 'jose'
+import { writeAuditLog } from '@/lib/audit'
+import { ObjectId } from 'mongodb'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -59,6 +61,16 @@ export async function POST(request: NextRequest) {
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: '/',
+    })
+
+    await writeAuditLog({
+      actorUserId: new ObjectId(user.id),
+      actorRole: user.role as any,
+      action: 'AUTH_LOGIN',
+      entityType: 'USER',
+      entityId: new ObjectId(user.id),
+      message: 'User logged in',
+      metadata: { email: user.email, role: user.role },
     })
 
     return response

@@ -34,6 +34,7 @@ export async function createUserNotification(
   relatedLostReportId?: ObjectId | string,
   relatedFoundReportId?: ObjectId | string
 ): Promise<Notification> {
+  const notificationsCollection = await collections.notifications()
   const notification: Notification = {
     userId: typeof userId === 'string' ? new ObjectId(userId) : userId,
     type,
@@ -47,7 +48,7 @@ export async function createUserNotification(
     updatedAt: new Date(),
   }
 
-  const result = await collections.notifications().insertOne(notification)
+  const result = await notificationsCollection.insertOne(notification)
   notification._id = result.insertedId
   return notification
 }
@@ -63,6 +64,7 @@ export async function createAdminNotification(
   relatedLostReportId?: ObjectId | string,
   relatedFoundReportId?: ObjectId | string
 ): Promise<Notification> {
+  const notificationsCollection = await collections.notifications()
   const notification: Notification = {
     userId: null, // null means admin notification
     type,
@@ -76,7 +78,7 @@ export async function createAdminNotification(
     updatedAt: new Date(),
   }
 
-  const result = await collections.notifications().insertOne(notification)
+  const result = await notificationsCollection.insertOne(notification)
   notification._id = result.insertedId
   return notification
 }
@@ -85,7 +87,7 @@ export async function createAdminNotification(
  * Get notifications for a user
  */
 export async function getUserNotifications(userId: ObjectId | string, limit: number = 50): Promise<Notification[]> {
-  const notifications = await collections.notifications()
+  const notifications = await (await collections.notifications())
     .find({ userId: typeof userId === 'string' ? new ObjectId(userId) : userId })
     .sort({ createdAt: -1 })
     .limit(limit)
@@ -98,7 +100,7 @@ export async function getUserNotifications(userId: ObjectId | string, limit: num
  * Get admin notifications
  */
 export async function getAdminNotifications(limit: number = 50): Promise<Notification[]> {
-  const notifications = await collections.notifications()
+  const notifications = await (await collections.notifications())
     .find({ userId: null })
     .sort({ createdAt: -1 })
     .limit(limit)
@@ -111,7 +113,7 @@ export async function getAdminNotifications(limit: number = 50): Promise<Notific
  * Mark notification as read
  */
 export async function markNotificationAsRead(notificationId: ObjectId | string): Promise<void> {
-  await collections.notifications().updateOne(
+  await (await collections.notifications()).updateOne(
     { _id: typeof notificationId === 'string' ? new ObjectId(notificationId) : notificationId },
     { $set: { isRead: true, updatedAt: new Date() } }
   )
@@ -121,7 +123,7 @@ export async function markNotificationAsRead(notificationId: ObjectId | string):
  * Get unread notification count for a user
  */
 export async function getUnreadNotificationCount(userId: ObjectId | string): Promise<number> {
-  return await collections.notifications().countDocuments({
+  return await (await collections.notifications()).countDocuments({
     userId: typeof userId === 'string' ? new ObjectId(userId) : userId,
     isRead: false,
   })
@@ -131,7 +133,7 @@ export async function getUnreadNotificationCount(userId: ObjectId | string): Pro
  * Get unread admin notification count
  */
 export async function getUnreadAdminNotificationCount(): Promise<number> {
-  return await collections.notifications().countDocuments({
+  return await (await collections.notifications()).countDocuments({
     userId: null,
     isRead: false,
   })

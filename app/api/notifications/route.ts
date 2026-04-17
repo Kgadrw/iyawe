@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { collections } from '@/lib/mongodb'
 import { getUserIdFromToken } from '@/lib/middleware'
 import { ObjectId } from 'mongodb'
+import { writeAuditLog } from '@/lib/audit'
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,14 +13,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user is admin
-    const user = await collections.users().findOne({ _id: new ObjectId(userId) })
+    const user = await (await collections.users()).findOne({ _id: new ObjectId(userId) })
     const isAdmin = user?.role === 'ADMIN'
+    const notificationsCollection = await collections.notifications()
 
     // Get notifications
     let notifications
     if (isAdmin) {
       // Admin gets both their own notifications and admin notifications
-      notifications = await collections.notifications().find({
+      notifications = await notificationsCollection.find({
         $or: [
           { userId: new ObjectId(userId) },
           { userId: null } // Admin notifications
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
         .toArray()
     } else {
       // Regular users only get their own notifications
-      notifications = await collections.notifications().find({
+      notifications = await notificationsCollection.find({
         userId: new ObjectId(userId)
       })
         .sort({ createdAt: -1 })
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get unread count
-    const unreadCount = await collections.notifications().countDocuments({
+    const unreadCount = await notificationsCollection.countDocuments({
       userId: isAdmin ? { $in: [new ObjectId(userId), null] } : new ObjectId(userId),
       isRead: false,
     })
@@ -84,11 +86,12 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check if user is admin
-    const user = await collections.users().findOne({ _id: new ObjectId(userId) })
+    const user = await (await collections.users()).findOne({ _id: new ObjectId(userId) })
     const isAdmin = user?.role === 'ADMIN'
+    const notificationsCollection = await collections.notifications()
 
     // Find notification and verify ownership
-    const notification = await collections.notifications().findOne({
+    const notification = await notificationsCollection.findOne({
       _id: new ObjectId(notificationId)
     })
 
@@ -102,10 +105,19 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update notification
-    await collections.notifications().updateOne(
+    await notificationsCollection.updateOne(
       { _id: new ObjectId(notificationId) },
       { $set: { isRead, updatedAt: new Date() } }
     )
+
+    await writeAuditLog({
+      actorUserId: new ObjectId(userId),
+      actorRole: (user?.role as any) || null,
+      action: 'NOTIFICATION_READ_UPDATE',
+      entityType: 'NOTIFICATION',
+      entityId: new ObjectId(notificationId),
+      message: `Notification marked as ${isRead ? 'read' : 'unread'}`,
+    })
 
     return NextResponse.json({ message: 'Notification updated successfully' })
   } catch (error) {
