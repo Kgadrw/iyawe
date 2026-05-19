@@ -1,5 +1,7 @@
 import type { Config } from "tailwindcss"
 
+const { rnp, rnpBlueScale, rnpGoldScale } = require("./lib/brand-colors")
+
 const config = {
   darkMode: ["class"],
   content: [
@@ -52,6 +54,14 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        rnp: {
+          navy: rnp.navy,
+          sky: rnp.sky,
+          gold: rnp.gold,
+          white: rnp.white,
+        },
+        blue: rnpBlueScale,
+        gold: rnpGoldScale,
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -33,6 +33,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (user.role === 'USER') {
+      return NextResponse.json(
+        {
+          error:
+            'Public accounts cannot log in here. This portal is for admin, police officers, and registered institutions only. Observers can use the site without signing in.',
+        },
+        { status: 403 }
+      )
+    }
+
     // Create JWT token
     const token = await new SignJWT({
       userId: user.id,

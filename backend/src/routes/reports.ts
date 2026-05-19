@@ -96,8 +96,14 @@ router.post('/lost', async (req: Request, res: Response) => {
       metadata: { documentType: data.documentType, hasDocumentNumber: !!data.documentNumber },
     })
 
-    // Try to find matches
     const matches = await findMatchesForLostReport(result.insertedId.toString())
+
+    let alertEmailsSent = 0
+    if (matches.length > 0) {
+      const { notifyMatchesForLostUpload } = await import('../lib/found-match-alerts')
+      const alertResult = await notifyMatchesForLostUpload(matches)
+      alertEmailsSent = alertResult.emailsSent
+    }
 
     return res.status(201).json({
       message: 'Lost report created successfully',
@@ -107,6 +113,7 @@ router.post('/lost', async (req: Request, res: Response) => {
         userId: insertedReport.userId?.toString(), // userId might be undefined for anonymous
       },
       matchesFound: matches.length,
+      alertEmailsSent,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -246,66 +253,11 @@ router.post('/found', requireRoles(['ADMIN', 'OFFICER', 'INSTITUTION']), upload.
       metadata: { documentType: data.documentType, hasDocumentNumber: !!data.documentNumber, hasImage: !!imageBase64 },
     })
 
-    // Try to find matches
     const matches = await findMatchesForFoundReport(result.insertedId.toString())
-
-    // Import notification functions
-    const { createUserNotification, createAdminNotification, NotificationType } = await import('../lib/notifications')
-
-    // Check for exact matches and create notifications
     const exactMatches = matches.filter((m: any) => m.isExactMatch === true)
-    
-    if (exactMatches.length > 0) {
-      // Notify admin about exact matches
-      for (const match of exactMatches) {
-        const lostReport = await collections.lostReports().findOne({ _id: match.lostReportId })
-        const foundReportDoc = await collections.foundReports().findOne({ _id: match.foundReportId })
-        
-        if (lostReport && foundReportDoc) {
-          const documentTypeLabel = foundReportDoc.documentType.replace(/_/g, ' ')
-          const documentNumberPartial = foundReportDoc.documentNumber 
-            ? `${foundReportDoc.documentNumber.substring(0, 2)}****${foundReportDoc.documentNumber.substring(foundReportDoc.documentNumber.length - 2)}`
-            : 'N/A'
 
-          // Notify admin
-          await createAdminNotification(
-            NotificationType.ADMIN_MATCH_ALERT,
-            '🚨 Exact Document Match Found!',
-            `An exact document number match has been found!\n\nDocument Type: ${documentTypeLabel}\nDocument Number: ${documentNumberPartial}\nFound Location: ${foundReportDoc.foundLocation || 'N/A'}\n\nPlease review and verify the match.`,
-            match._id,
-            match.lostReportId,
-            match.foundReportId
-          )
-
-          // Notify user who reported the lost document
-          if (lostReport.userId) {
-            await createUserNotification(
-              lostReport.userId,
-              NotificationType.MATCH_FOUND,
-              '🎉 Potential Match Found!',
-              `We found a document that matches your lost ${documentTypeLabel}!\n\nDocument Number: ${documentNumberPartial}\nFound Location: ${foundReportDoc.foundLocation || 'N/A'}\n\nPlease verify if this is your document.`,
-              match._id,
-              match.lostReportId,
-              match.foundReportId
-            )
-          } else if (lostReport.reporterEmail) {
-            // For anonymous reports, we could send email notification here
-            // For now, we'll just log it
-            console.log(`Match found for anonymous lost report. Email: ${lostReport.reporterEmail}`)
-          }
-        }
-      }
-    } else if (matches.length > 0) {
-      // Notify admin about potential matches (non-exact)
-      await createAdminNotification(
-        NotificationType.ADMIN_MATCH_ALERT,
-        '⚠️ Potential Document Match Found',
-        `${matches.length} potential match(es) found for the newly uploaded found document. Please review.`,
-        undefined,
-        undefined,
-        result.insertedId
-      )
-    }
+    const { notifyMatchesForFoundUpload } = await import('../lib/found-match-alerts')
+    const { emailsSent: alertEmailsSent } = await notifyMatchesForFoundUpload(matches)
 
     return res.status(201).json({
       message: 'Found report created successfully',
@@ -316,6 +268,7 @@ router.post('/found', requireRoles(['ADMIN', 'OFFICER', 'INSTITUTION']), upload.
       },
       matchesFound: matches.length,
       exactMatchesFound: exactMatches.length,
+      alertEmailsSent,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

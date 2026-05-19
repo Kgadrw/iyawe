@@ -6,10 +6,22 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
-import { Shield, ArrowLeft, Home } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { apiRequest, API_ENDPOINTS } from '@/lib/api'
+import {
+  PUBLIC_REGISTER_ROLE,
+  REGISTER_ROLE_OPTIONS,
+  registerRoleLabel,
+} from '@/lib/dashboard-routes'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -20,6 +32,7 @@ export default function RegisterPage() {
     email: '',
     password: '',
     phone: '',
+    role: PUBLIC_REGISTER_ROLE,
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,9 +56,10 @@ export default function RegisterPage() {
         return
       }
 
+      const role = data.user?.role ?? formData.role
       toast({
         title: 'Success',
-        description: 'Account created successfully. Please login.',
+        description: `${registerRoleLabel(role)} account created. You can sign in now.`,
       })
 
       router.push('/login')
@@ -61,61 +75,77 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <Link href="/" className="absolute top-4 left-4">
-        <Button variant="ghost" className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" className="gap-1.5 text-gray-600">
           <ArrowLeft className="h-4 w-4" />
-          <Home className="h-4 w-4" />
-          Back to Home
+          Back
         </Button>
       </Link>
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Shield className="h-12 w-12 text-blue-600" />
-          </div>
-          <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Join Iyawe to recover your documents</CardDescription>
+      <Card className="w-full max-w-sm border-gray-200 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-semibold">Register</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="role">Role</Label>
+              <Select
+                value={formData.role}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, role: value as typeof PUBLIC_REGISTER_ROLE })
+                }
+              >
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REGISTER_ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
                 type="text"
-                placeholder="John Doe"
+                autoComplete="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                autoComplete="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone (Optional)</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="phone">Phone</Label>
               <Input
                 id="phone"
                 type="tel"
-                placeholder="+1234567890"
+                autoComplete="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
@@ -123,18 +153,16 @@ export default function RegisterPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? 'Creating account…' : 'Create account'}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm">
-            <span className="text-gray-600">Already have an account? </span>
-            <Link href="/login" className="text-blue-600 hover:underline">
+          <p className="mt-3 text-center text-xs text-gray-500">
+            <Link href="/login" className="text-blue-700 hover:underline">
               Login
             </Link>
-          </div>
+          </p>
         </CardContent>
       </Card>
     </div>
   )
 }
-

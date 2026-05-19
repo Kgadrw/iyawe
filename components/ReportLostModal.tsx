@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, FormEvent } from 'react'
+import React, { useState, FormEvent, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +14,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { apiRequest, API_ENDPOINTS } from '@/lib/api'
-import { Calendar } from 'lucide-react'
 
 const DOCUMENT_TYPES = [
   { value: 'ID_CARD', label: 'ID Card' },
@@ -25,33 +24,90 @@ const DOCUMENT_TYPES = [
   { value: 'OTHER', label: 'Other' },
 ]
 
+const STAFF_ROLES = ['ADMIN', 'OFFICER', 'INSTITUTION']
+
 interface ReportLostModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Staff dashboard: skip contact fields (account is linked on the server). */
+  variant?: 'public' | 'staff'
 }
 
-export function ReportLostModal({ open, onOpenChange }: ReportLostModalProps) {
+export function ReportLostModal({ open, onOpenChange, variant = 'public' }: ReportLostModalProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [useStaffForm, setUseStaffForm] = useState(variant === 'staff')
   const [formData, setFormData] = useState({
     documentType: '',
     documentNumber: '',
     description: '',
-    lostDate: '',
     lostLocation: '',
     reporterName: '',
     reporterEmail: '',
     reporterPhone: '',
   })
 
+  useEffect(() => {
+    if (variant === 'staff') {
+      setUseStaffForm(true)
+      return
+    }
+    if (!open) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await apiRequest('/api/auth/me')
+        const data = await res.json()
+        if (!cancelled) {
+          const loggedIn = !!data.user
+          const staff =
+            loggedIn && data.user?.role && STAFF_ROLES.includes(data.user.role)
+          setUseStaffForm(staff || loggedIn)
+        }
+      } catch {
+        if (!cancelled) setUseStaffForm(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, variant])
+
+  const resetForm = () => {
+    setFormData({
+      documentType: '',
+      documentNumber: '',
+      description: '',
+      lostLocation: '',
+      reporterName: '',
+      reporterEmail: '',
+      reporterPhone: '',
+    })
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
+      const payload: Record<string, string> = {
+        documentType: formData.documentType,
+        lostLocation: formData.lostLocation,
+      }
+      if (formData.documentNumber.trim()) payload.documentNumber = formData.documentNumber.trim()
+      if (formData.description.trim()) payload.description = formData.description.trim()
+
+      if (!useStaffForm) {
+        payload.reporterName = formData.reporterName
+        payload.reporterEmail = formData.reporterEmail
+        if (formData.reporterPhone.trim()) payload.reporterPhone = formData.reporterPhone.trim()
+      }
+
       const response = await apiRequest(API_ENDPOINTS.lostReports, {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()
@@ -67,20 +123,10 @@ export function ReportLostModal({ open, onOpenChange }: ReportLostModalProps) {
 
       toast({
         title: 'Success',
-        description: `Missing document reported! ${data.matchesFound || 0} potential matches found.`,
+        description: `Reported. ${data.matchesFound || 0} potential match(es).`,
       })
 
-      // Reset form and close modal
-      setFormData({
-        documentType: '',
-        documentNumber: '',
-        description: '',
-        lostDate: '',
-        lostLocation: '',
-        reporterName: '',
-        reporterEmail: '',
-        reporterPhone: '',
-      })
+      resetForm()
       onOpenChange(false)
     } catch (error) {
       toast({
@@ -95,139 +141,109 @@ export function ReportLostModal({ open, onOpenChange }: ReportLostModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Report Missing Document</DialogTitle>
-          <DialogDescription>
-            Report your missing document to help others find it. Your information is kept private.
+          <DialogTitle>{useStaffForm ? 'Report lost document' : 'Report missing document'}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {useStaffForm
+              ? 'Create a lost report linked to your account'
+              : 'Report a missing document'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Reporter Information Section */}
-          <div className="border-t border-b border-gray-200 py-4 space-y-4">
-            <h3 className="font-semibold text-sm text-gray-900">Your Contact Information</h3>
-            <p className="text-xs text-gray-500">
-              This information helps us contact you if your document is found. It will be kept private.
-            </p>
-            
-            <div className="space-y-2">
-              <Label htmlFor="reporterName">Your Name *</Label>
-              <Input
-                id="reporterName"
-                type="text"
-                placeholder="Enter your full name"
-                value={formData.reporterName}
-                onChange={(e) => setFormData({ ...formData, reporterName: e.target.value })}
-                required
-              />
+          {!useStaffForm && (
+            <div className="space-y-3 pb-2 border-b border-gray-200">
+              <p className="text-sm text-gray-600">Contact (if we find a match)</p>
+              <div className="space-y-1.5">
+                <Label htmlFor="reporterName">Name</Label>
+                <Input
+                  id="reporterName"
+                  type="text"
+                  value={formData.reporterName}
+                  onChange={(e) => setFormData({ ...formData, reporterName: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reporterEmail">Email</Label>
+                <Input
+                  id="reporterEmail"
+                  type="email"
+                  value={formData.reporterEmail}
+                  onChange={(e) => setFormData({ ...formData, reporterEmail: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reporterPhone">Phone (optional)</Label>
+                <Input
+                  id="reporterPhone"
+                  type="tel"
+                  value={formData.reporterPhone}
+                  onChange={(e) => setFormData({ ...formData, reporterPhone: e.target.value })}
+                />
+              </div>
             </div>
+          )}
 
-            <div className="space-y-2">
-              <Label htmlFor="reporterEmail">Your Email *</Label>
-              <Input
-                id="reporterEmail"
-                type="email"
-                placeholder="your.email@example.com"
-                value={formData.reporterEmail}
-                onChange={(e) => setFormData({ ...formData, reporterEmail: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reporterPhone">Your Phone (Optional)</Label>
-              <Input
-                id="reporterPhone"
-                type="tel"
-                placeholder="+1234567890"
-                value={formData.reporterPhone}
-                onChange={(e) => setFormData({ ...formData, reporterPhone: e.target.value })}
-              />
-            </div>
-          </div>
-
-          {/* Document Information Section */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-gray-900">Document Information</h3>
-            
-            <div className="space-y-2">
-              <Label htmlFor="documentType">Document Type *</Label>
-              <Select
-                value={formData.documentType}
-                onValueChange={(value) => setFormData({ ...formData, documentType: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select document type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOCUMENT_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="documentNumber">Document Number (Optional)</Label>
-              <Input
-                id="documentNumber"
-                type="text"
-                placeholder="Enter document number if known"
-                value={formData.documentNumber}
-                onChange={(e) => setFormData({ ...formData, documentNumber: e.target.value })}
-              />
-              <p className="text-xs text-gray-500">
-                This helps us match with found reports. Only partial information is stored for security.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="lostDate">Date Lost (Optional)</Label>
-              <Input
-                id="lostDate"
-                type="date"
-                value={formData.lostDate}
-                onChange={(e) => setFormData({ ...formData, lostDate: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="lostLocation">Location Lost *</Label>
-              <Input
-                id="lostLocation"
-                type="text"
-                placeholder="e.g., Downtown Mall, Main Street"
-                value={formData.lostLocation}
-                onChange={(e) => setFormData({ ...formData, lostLocation: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Additional Details (Optional)</Label>
-              <textarea
-                id="description"
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="Any additional information about when or where you lost it..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
+          <div className="space-y-1.5">
+            <Label htmlFor="documentType">Document type</Label>
+            <Select
+              value={formData.documentType}
+              onValueChange={(value) => setFormData({ ...formData, documentType: value })}
+              required
             >
+              <SelectTrigger id="documentType">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                {DOCUMENT_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="lostLocation">Where it was lost</Label>
+            <Input
+              id="lostLocation"
+              type="text"
+              placeholder="Location"
+              value={formData.lostLocation}
+              onChange={(e) => setFormData({ ...formData, lostLocation: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="documentNumber">Document number (optional)</Label>
+            <Input
+              id="documentNumber"
+              type="text"
+              value={formData.documentNumber}
+              onChange={(e) => setFormData({ ...formData, documentNumber: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="description">Notes (optional)</Label>
+            <textarea
+              id="description"
+              className="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Reporting...' : 'Report Missing'}
+            <Button type="submit" disabled={loading || !formData.documentType}>
+              {loading ? 'Saving…' : 'Submit'}
             </Button>
           </div>
         </form>

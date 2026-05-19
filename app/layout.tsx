@@ -6,7 +6,7 @@ import { Toaster } from '@/components/ui/toaster'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Iyawe - Document Recovery Platform',
+  title: 'Subizwa - Document Recovery Platform',
   description: 'A secure platform connecting people who lose documents with those who find them',
 }
 

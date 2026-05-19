@@ -91,7 +91,7 @@ export default function OfficerDashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Report lost documents, upload found documents, and mark documents as handed over when the owner is found.
+            Upload lost or found documents under your account. Mark found items handed over when the owner collects them.
           </p>
         </div>
 
@@ -204,6 +204,7 @@ export default function OfficerDashboardPage() {
       </div>
 
       <ReportLostModal
+        variant="staff"
         open={reportLostOpen}
         onOpenChange={(open) => {
           setReportLostOpen(open)

@@ -9,7 +9,7 @@ const registerSchema = z.object({
   password: z.string().min(6),
   name: z.string().min(2),
   phone: z.string().optional(),
-  role: z.enum(['USER', 'INSTITUTION']).optional(),
+  role: z.literal('INSTITUTION').default('INSTITUTION'),
 })
 
 export async function POST(request: NextRequest) {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       data.password,
       data.name,
       data.phone,
-      data.role === 'INSTITUTION' ? UserRole.INSTITUTION : UserRole.USER
+      UserRole[data.role]
     )
 
     if (!user) {
@@ -42,24 +42,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const uid = (user as { _id: ObjectId })._id
+
     await writeAuditLog({
-      actorUserId: new ObjectId(user.id),
+      actorUserId: uid,
       actorRole: (user.role as any) || null,
       action: 'AUTH_REGISTER',
       entityType: 'USER',
-      entityId: new ObjectId(user.id),
-      message: 'User registered',
+      entityId: uid,
+      message: 'Institution account registered',
       metadata: { email: user.email, role: user.role },
     })
 
     return NextResponse.json(
-      { 
-        message: 'User created successfully', 
+      {
+        message: 'Institution account created successfully',
         user: {
-          id: user.id,
+          id: uid.toString(),
           email: user.email,
           name: user.name,
-        }
+          role: user.role,
+        },
       },
       { status: 201 }
     )

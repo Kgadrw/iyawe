@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
       id: ad._id!.toString(),
       image: ad.image,
       link: ad.link,
+      title: ad.title,
     }))
 
     return NextResponse.json({ ads: adsWithId })

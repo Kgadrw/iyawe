@@ -27,9 +27,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const report = await lostCollection.findOne({ _id: new ObjectId(id) })
     if (!report) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
 
-    // Officers can update only their own lost reports; admin can update all.
+    // Officers can update only their own lost reports; admin can update all. Guest reports (no userId) are admin-only.
     if (user.role !== 'ADMIN') {
-      const ownerId = report.userId?.toString?.() || String(report.userId)
+      if (!report.userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      const ownerId = report.userId.toString()
       if (ownerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

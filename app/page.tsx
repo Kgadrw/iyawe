@@ -11,11 +11,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
-import { Shield, Search, CheckCircle, Building2, Calendar, Ticket, Compass, MessageCircle, FileQuestion, FileCheck, MapPin, Clock, Filter, LogIn, User, Mail, Phone, Hash, FileText, ArrowLeft, X, ChevronDown, ChevronUp, AlertCircle, Plus, Heart, Award, AlertTriangle, Navigation, Info, Lock, Users, Eye, Menu } from 'lucide-react'
+import { Search, CheckCircle, Building2, Calendar, Ticket, Compass, MessageCircle, FileQuestion, FileCheck, MapPin, Clock, Filter, LogIn, User, Mail, Phone, Hash, FileText, ArrowLeft, X, ChevronDown, ChevronUp, AlertCircle, Heart, Award, AlertTriangle, Navigation, Info, Lock, Users, Eye, Menu } from 'lucide-react'
 import { apiRequest, API_ENDPOINTS } from '@/lib/api'
-import { ReportFoundModal } from '@/components/ReportFoundModal'
-import { ReportLostModal } from '@/components/ReportLostModal'
-import { DocumentDetailsModal } from '@/components/DocumentDetailsModal'
+import { dashboardPathForStaffRole } from '@/lib/dashboard-routes'
+import { cn } from '@/lib/utils'
+import { HomeDateTime } from '@/components/HomeDateTime'
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -23,12 +23,8 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [latestDocuments, setLatestDocuments] = useState<any[]>([])
   const [documentsLoading, setDocumentsLoading] = useState(true)
-  const [reportFoundModalOpen, setReportFoundModalOpen] = useState(false)
-  const [reportLostModalOpen, setReportLostModalOpen] = useState(false)
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [showSearchResults, setShowSearchResults] = useState(false)
-  const [selectedDocument, setSelectedDocument] = useState<any | null>(null)
-  const [documentDetailsModalOpen, setDocumentDetailsModalOpen] = useState(false)
   const [handoverPoints, setHandoverPoints] = useState<any[]>([])
   const [handoverPointsLoading, setHandoverPointsLoading] = useState(true)
   const [ads, setAds] = useState<any[]>([])
@@ -54,13 +50,12 @@ export default function Home() {
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const router = useRouter()
   const { toast } = useToast()
-  const searchContainerRef = useRef<HTMLDivElement>(null)
+  const navSearchRef = useRef<HTMLDivElement>(null)
+  const heroSearchRef = useRef<HTMLDivElement>(null)
   const suggestionsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const tabsContainerRef = useRef<HTMLDivElement>(null)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
-
-
   const fetchHandoverPoints = async () => {
     try {
       setHandoverPointsLoading(true)
@@ -100,21 +95,6 @@ export default function Home() {
       console.error('Error fetching handover points:', error)
     } finally {
       setHandoverPointsLoading(false)
-    }
-  }
-
-  const fetchAds = async () => {
-    try {
-      setAdsLoading(true)
-      const response = await fetch('/api/ads')
-      if (response.ok) {
-        const data = await response.json()
-        setAds(data.ads || [])
-      }
-    } catch (error) {
-      console.error('Error fetching ads:', error)
-    } finally {
-      setAdsLoading(false)
     }
   }
 
@@ -278,7 +258,6 @@ export default function Home() {
     }
   }, [openDropdownId])
 
-  // Fetch ads only once on component mount - ads don't change frequently
   useEffect(() => {
     const loadAds = async () => {
       try {
@@ -295,7 +274,7 @@ export default function Home() {
       }
     }
     loadAds()
-  }, []) // Empty dependency array - only runs once on mount
+  }, [])
 
   useEffect(() => {
     fetchLatestDocuments()
@@ -365,12 +344,13 @@ export default function Home() {
     }
   }, [searchQuery])
 
-  // Handle click outside to close suggestions
+  // Handle click outside to close suggestions (nav bar + hero search are separate DOM trees)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false)
-      }
+      const t = event.target as Node
+      const inNav = navSearchRef.current?.contains(t)
+      const inHero = heroSearchRef.current?.contains(t)
+      if (!inNav && !inHero) setShowSuggestions(false)
     }
 
     document.addEventListener('mousedown', handleClickOutside)
@@ -378,22 +358,6 @@ export default function Home() {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
-
-  // Refresh documents when modals close (in case new documents were added)
-  const prevFoundModalOpen = useRef(false)
-  const prevLostModalOpen = useRef(false)
-  
-  useEffect(() => {
-    // Check if a modal was just closed
-    if (prevFoundModalOpen.current && !reportFoundModalOpen) {
-      setTimeout(() => fetchLatestDocuments(), 500)
-    }
-    if (prevLostModalOpen.current && !reportLostModalOpen) {
-      setTimeout(() => fetchLatestDocuments(), 500)
-    }
-    prevFoundModalOpen.current = reportFoundModalOpen
-    prevLostModalOpen.current = reportLostModalOpen
-  }, [reportFoundModalOpen, reportLostModalOpen])
 
   const handleSearchWithQuery = async (query: string) => {
     if (!query.trim()) {
@@ -505,7 +469,8 @@ export default function Home() {
 
       setLoginModalOpen(false)
       setLoginFormData({ email: '', password: '' })
-      router.push('/dashboard')
+      router.push(dashboardPathForStaffRole(data.user?.role ?? ''))
+      router.refresh()
     } catch (error) {
       toast({
         title: 'Error',
@@ -547,6 +512,30 @@ export default function Home() {
     (doc.foundLocation && doc.foundLocation.trim() !== '')
   ).length
 
+  const documentViewFilters: {
+    id: typeof documentViewType
+    label: string
+    count?: number
+    icon?: typeof AlertCircle
+    iconInactiveClassName?: string
+  }[] = [
+    { id: 'all', label: 'All Items' },
+    { id: 'lost', label: 'Lost', count: lostCount, icon: AlertCircle },
+    { id: 'found', label: 'Found', count: foundCount, icon: CheckCircle },
+    { id: 'reunited', label: 'Reunited', count: reunitedCount, icon: Heart },
+    { id: 'urgent', label: 'Urgent', count: urgentCount, icon: AlertTriangle, iconInactiveClassName: 'text-orange-500' },
+    { id: 'nearby', label: 'Nearby', count: nearbyCount, icon: Navigation },
+  ]
+
+  const filterTabButtonClass = (isActive: boolean) =>
+    cn(
+      'h-10 sm:h-11 px-4 sm:px-5 rounded-full flex-shrink-0 text-xs sm:text-sm transition-colors inline-flex items-center gap-1.5',
+      'border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0',
+      isActive
+        ? 'bg-blue-900 text-white font-semibold hover:bg-blue-900 hover:text-white'
+        : 'bg-gray-100 text-gray-700 font-medium hover:bg-gray-200'
+    )
+
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Urgent Announcement Banner */}
@@ -583,25 +572,21 @@ export default function Home() {
         </div>
       )}
 
-      {/* Navbar */}
-      <nav className="fixed left-0 right-0 z-50 bg-white/90 backdrop-blur-sm">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-3 sm:pt-4">
-          <div className="flex items-center justify-between h-12 sm:h-20 gap-3">
-            {/* Logo Section */}
-            <Link href="/" className="flex items-center gap-2 sm:gap-3 group flex-shrink-0">
-              <div className="relative">
-                <div className="relative bg-gradient-to-br from-blue-500 to-blue-700 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl group-hover:scale-105 transition-transform">
-                  <FileCheck className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
-                </div>
-              </div>
+      {/* Navbar — traffic-sign header */}
+      <nav className="traffic-header fixed left-0 right-0 z-50">
+        <div className="traffic-header-stripes" aria-hidden="true" />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-3 sm:pt-4 traffic-header-body">
+          <div className="flex h-12 items-center gap-2 sm:h-20 sm:gap-3 lg:gap-4">
+            {/* Logo — left */}
+            <Link href="/" className="group flex flex-shrink-0 items-center">
               <div className="flex flex-col">
-                <span className="text-base sm:text-3xl font-bold text-gray-900 tracking-tight">UNLF</span>
-                <span className="text-xs text-gray-600 font-medium hidden sm:block">United Lost & Found</span>
+                <span className="text-base sm:text-3xl font-bold text-white tracking-tight group-hover:opacity-90 transition-opacity">Subizwa</span>
+                <span className="text-xs text-gold-400 font-semibold hidden sm:block uppercase tracking-wide">Lost & found platform</span>
               </div>
             </Link>
-            
-            {/* Desktop Searchbar */}
-            <div className="hidden lg:flex flex-1 max-w-2xl mx-4 relative" ref={searchContainerRef}>
+
+            {/* Desktop search — grows toward staff / login controls */}
+            <div className="relative hidden min-w-0 flex-1 lg:flex lg:pl-1 lg:pr-2" ref={navSearchRef}>
               <div className="w-full bg-white border border-gray-300 rounded-[1.5rem] transition-all duration-200">
                 <div className="flex items-center gap-0 p-1.5">
                   {/* Search Input */}
@@ -627,14 +612,14 @@ export default function Home() {
                   </div>
 
                   {/* Divider */}
-                  <div className="h-6 w-px bg-gray-200 mx-1"></div>
+                  <div className="h-6 w-px bg-gray-200 mx-1" />
 
                   {/* Location Filter */}
                   <div className="flex items-center">
                     <Select>
-                      <SelectTrigger className="w-[140px] h-8 border-0 focus:ring-0 text-xs bg-transparent hover:bg-gray-50 rounded-lg transition-colors">
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5 text-blue-600" />
+                      <SelectTrigger className="w-[140px] h-8 border-0 shadow-none outline-none focus:ring-0 focus-visible:ring-0 data-[state=open]:ring-0 data-[state=open]:border-0 text-xs font-semibold text-blue-900 bg-transparent hover:opacity-80 rounded-lg [&_svg]:text-blue-900">
+                        <div className="flex items-center gap-1.5 text-blue-900">
+                          <MapPin className="h-3.5 w-3.5 text-blue-900 flex-shrink-0" />
                           <SelectValue placeholder="Location" />
                         </div>
                       </SelectTrigger>
@@ -648,14 +633,14 @@ export default function Home() {
                   </div>
 
                   {/* Divider */}
-                  <div className="h-6 w-px bg-gray-200 mx-1"></div>
+                  <div className="h-6 w-px bg-gray-200 mx-1" />
 
                   {/* Category Filter */}
                   <div className="flex items-center">
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-[160px] h-8 border-0 focus:ring-0 text-xs bg-transparent hover:bg-gray-50 rounded-lg transition-colors">
-                        <div className="flex items-center gap-1.5">
-                          <Filter className="h-3.5 w-3.5 text-blue-600" />
+                      <SelectTrigger className="w-[160px] h-8 border-0 shadow-none outline-none focus:ring-0 focus-visible:ring-0 data-[state=open]:ring-0 data-[state=open]:border-0 text-xs font-semibold text-blue-900 bg-transparent hover:opacity-80 rounded-lg [&_svg]:text-blue-900">
+                        <div className="flex items-center gap-1.5 text-blue-900">
+                          <Filter className="h-3.5 w-3.5 text-blue-900 flex-shrink-0" />
                           <SelectValue placeholder="Category" />
                         </div>
                       </SelectTrigger>
@@ -672,7 +657,7 @@ export default function Home() {
                   </div>
 
                   {/* Divider */}
-                  <div className="h-6 w-px bg-gray-200 mx-1"></div>
+                  <div className="h-6 w-px bg-gray-200 mx-1" />
 
                   {/* Search Button */}
                   <Button 
@@ -756,22 +741,22 @@ export default function Home() {
               )}
             </div>
             
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 sm:gap-3 ml-auto flex-shrink-0">
+            {/* Staff login & report actions — right */}
+            <div className="ml-auto flex flex-shrink-0 items-center gap-2 sm:gap-3">
               {/* Mobile Actions */}
               <div className="flex items-center gap-2 sm:hidden">
                 <Button
-                  className="h-9 px-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full text-xs font-medium flex items-center gap-1"
+                  variant="outline"
                   type="button"
+                  className="h-9 px-2.5 rounded-full border-gray-300 text-gray-800 bg-white hover:bg-gray-100 text-xs font-medium flex items-center gap-1"
                   onClick={() => {
-                    setReportLostModalOpen(true)
+                    setLoginModalOpen(true)
                     setMobileMenuOpen(false)
                   }}
                 >
-                  <Plus className="h-3 w-3" />
-                  <span>Report</span>
+                  <LogIn className="h-3.5 w-3.5" />
+                  <span>Staff</span>
                 </Button>
-
                 <Button
                   variant="outline"
                   className="h-9 w-9 p-0 rounded-full border-gray-300 text-gray-700 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors"
@@ -787,30 +772,17 @@ export default function Home() {
 
               {/* Desktop / Tablet Actions */}
               <div className="hidden sm:flex items-center gap-2 sm:gap-3">
-                {/* Desktop Primary CTA */}
-                <Button 
-                  className="hidden lg:flex h-11 px-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full font-medium transition-all duration-200 flex items-center gap-2 border border-blue-500/50"
+                <Button
+                  variant="outline"
                   type="button"
+                  className="h-9 sm:h-11 px-3 sm:px-4 rounded-full border-slate-300 text-slate-800 bg-white hover:bg-slate-50 font-medium flex items-center gap-2"
                   onClick={() => {
-                    setReportLostModalOpen(true)
+                    setLoginModalOpen(true)
                     setMobileMenuOpen(false)
                   }}
                 >
-                  <Plus className="h-4 w-4" />
-                  Report Item
-                </Button>
-                
-                {/* Found Item Button */}
-                <Button 
-                  className="h-9 sm:h-11 sm:w-auto sm:px-5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-full text-xs sm:text-base font-medium transition-all duration-200 flex items-center justify-center gap-1 sm:gap-2 border border-green-500/50"
-                  type="button"
-                  onClick={() => {
-                    setReportFoundModalOpen(true)
-                    setMobileMenuOpen(false)
-                  }}
-                >
-                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Report Found</span>
+                  <LogIn className="h-4 w-4" />
+                  <span className="hidden sm:inline">Staff login</span>
                 </Button>
               </div>
             </div>
@@ -818,22 +790,24 @@ export default function Home() {
           
           {/* Mobile Menu */}
           {mobileMenuOpen && (
-            <div className="lg:hidden border-t border-blue-700/50 py-4 animate-in slide-in-from-top duration-200">
+            <div className="lg:hidden border-t border-blue-900/25 bg-white/95 py-4 animate-in slide-in-from-top duration-200">
               <div className="flex flex-col gap-2">
-                <Button 
-                  className="mt-2 mx-4 h-11 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full font-medium transition-all duration-200 flex items-center justify-center gap-2"
+                <Button
+                  variant="outline"
+                  className="mx-4 h-11 rounded-full border-slate-300 text-slate-800"
                   onClick={() => {
-                    setReportLostModalOpen(true)
+                    setLoginModalOpen(true)
                     setMobileMenuOpen(false)
                   }}
                 >
-                  <Plus className="h-4 w-4" />
-                  Report Item
+                  <LogIn className="h-4 w-4 mr-2 inline" />
+                  Staff login (admin, officer, institution)
                 </Button>
               </div>
             </div>
           )}
         </div>
+        <div className="traffic-header-foot" aria-hidden="true" />
       </nav>
 
       {/* Header with Search Section */}
@@ -843,7 +817,7 @@ export default function Home() {
         <div className="space-y-4 overflow-x-hidden">
           {/* Main Search Bar with Integrated Filters */}
           <div className="flex justify-center">
-            <div className="w-full max-w-6xl" ref={searchContainerRef}>
+            <div className="w-full max-w-6xl" ref={heroSearchRef}>
               {/* Mobile: All-in-one Searchbar */}
               <div className="md:hidden relative">
                 <div className="bg-white border border-gray-300 rounded-[2rem] transition-all duration-200 p-1.5">
@@ -871,13 +845,13 @@ export default function Home() {
                     </div>
                     
                     {/* Divider */}
-                    <div className="h-5 w-px bg-gray-200 flex-shrink-0"></div>
+                    <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
                     
                     {/* Location Filter */}
                     <Select>
-                      <SelectTrigger className="w-[70px] h-9 border-0 focus:ring-0 text-[10px] bg-transparent hover:bg-gray-50 rounded-lg transition-colors px-1 flex-shrink-0">
-                        <div className="flex items-center gap-0.5">
-                          <MapPin className="h-3 w-3 text-blue-600" />
+                      <SelectTrigger className="w-[78px] h-9 border-0 shadow-none outline-none focus:ring-0 focus-visible:ring-0 data-[state=open]:ring-0 data-[state=open]:border-0 text-[10px] font-semibold text-blue-900 bg-transparent hover:opacity-80 rounded-lg px-1 flex-shrink-0 [&_svg]:text-blue-900">
+                        <div className="flex items-center gap-0.5 text-blue-900">
+                          <MapPin className="h-3 w-3 text-blue-900 flex-shrink-0" />
                           <SelectValue placeholder="Loc" />
                         </div>
                       </SelectTrigger>
@@ -890,13 +864,13 @@ export default function Home() {
                     </Select>
                     
                     {/* Divider */}
-                    <div className="h-5 w-px bg-gray-200 flex-shrink-0"></div>
+                    <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
                     
                     {/* Category Filter */}
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-[75px] h-9 border-0 focus:ring-0 text-[10px] bg-transparent hover:bg-gray-50 rounded-lg transition-colors px-1 flex-shrink-0">
-                        <div className="flex items-center gap-0.5">
-                          <Filter className="h-3 w-3 text-blue-600" />
+                      <SelectTrigger className="w-[82px] h-9 border-0 shadow-none outline-none focus:ring-0 focus-visible:ring-0 data-[state=open]:ring-0 data-[state=open]:border-0 text-[10px] font-semibold text-blue-900 bg-transparent hover:opacity-80 rounded-lg px-1 flex-shrink-0 [&_svg]:text-blue-900">
+                        <div className="flex items-center gap-0.5 text-blue-900">
+                          <Filter className="h-3 w-3 text-blue-900 flex-shrink-0" />
                           <SelectValue placeholder="Cat" />
                         </div>
                       </SelectTrigger>
@@ -912,7 +886,7 @@ export default function Home() {
                     </Select>
                     
                     {/* Divider */}
-                    <div className="h-5 w-px bg-gray-200 flex-shrink-0"></div>
+                    <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
 
               {/* Search Button */}
                 <Button 
@@ -1001,7 +975,6 @@ export default function Home() {
       {/* Main Content Section */}
       <section className="bg-white container mx-auto px-2 sm:px-6 lg:px-8 pb-24 md:pb-16 overflow-x-hidden">
         <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
-          {/* Latest Documents - Left Side (2/3 width) */}
           <div className="lg:col-span-2 order-2 lg:order-1">
             {/* Status Filter Tabs */}
             <div className="mb-4 sm:mb-6">
@@ -1040,87 +1013,32 @@ export default function Home() {
                   setTouchEnd(null)
                 }}
               >
-                <Button
-                  variant="ghost"
-                  className={`h-10 sm:h-12 px-4 sm:px-6 rounded-full flex-shrink-0 text-xs sm:text-sm transition-all duration-200 ${
-                    documentViewType === 'all'
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:text-white font-semibold'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-700 font-medium'
-                  }`}
-                  onClick={() => setDocumentViewType('all')}
-                >
-                  All Items
-                </Button>
-                <Button
-                  variant="ghost"
-                  className={`h-10 sm:h-12 px-4 sm:px-6 rounded-full flex items-center gap-1 sm:gap-2 flex-shrink-0 text-xs sm:text-sm transition-all duration-200 ${
-                    documentViewType === 'lost'
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:text-white font-semibold'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-700 font-medium'
-                  }`}
-                  onClick={() => setDocumentViewType('lost')}
-                >
-                  <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Lost</span>
-                  <span className="sm:hidden">Lost</span>
-                  <span className="ml-1 font-normal">({lostCount})</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className={`h-10 sm:h-12 px-4 sm:px-6 rounded-full flex items-center gap-1 sm:gap-2 flex-shrink-0 text-xs sm:text-sm transition-all duration-200 ${
-                    documentViewType === 'found'
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:text-white font-semibold'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-700 font-medium'
-                  }`}
-                  onClick={() => setDocumentViewType('found')}
-                >
-                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Found</span>
-                  <span className="sm:hidden">Found</span>
-                  <span className="ml-1 font-normal">({foundCount})</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className={`h-10 sm:h-12 px-4 sm:px-6 rounded-full flex items-center gap-1 sm:gap-2 flex-shrink-0 text-xs sm:text-sm transition-all duration-200 ${
-                    documentViewType === 'reunited'
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:text-white font-semibold'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-700 font-medium'
-                  }`}
-                  onClick={() => setDocumentViewType('reunited')}
-                >
-                  <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Reunited</span>
-                  <span className="sm:hidden">Reunited</span>
-                  <span className="ml-1 font-normal">({reunitedCount})</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className={`h-10 sm:h-12 px-4 sm:px-6 rounded-full flex items-center gap-1 sm:gap-2 flex-shrink-0 text-xs sm:text-sm transition-all duration-200 ${
-                    documentViewType === 'urgent'
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:text-white font-semibold'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-700 font-medium'
-                  }`}
-                  onClick={() => setDocumentViewType('urgent')}
-                >
-                  <AlertTriangle className={`h-3 w-3 sm:h-4 sm:w-4 ${documentViewType === 'urgent' ? 'text-white' : 'text-orange-500'}`} />
-                  <span className="hidden sm:inline">Urgent</span>
-                  <span className="sm:hidden">Urgent</span>
-                  <span className="ml-1 font-normal">({urgentCount})</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  className={`h-10 sm:h-12 px-4 sm:px-6 rounded-full flex items-center gap-1 sm:gap-2 flex-shrink-0 text-xs sm:text-sm transition-all duration-200 ${
-                    documentViewType === 'nearby'
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:text-white font-semibold'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-700 font-medium'
-                  }`}
-                  onClick={() => setDocumentViewType('nearby')}
-                >
-                  <Navigation className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Nearby</span>
-                  <span className="sm:hidden">Nearby</span>
-                  <span className="ml-1 font-normal">({nearbyCount})</span>
-                </Button>
+                {documentViewFilters.map((filter) => {
+                  const isActive = documentViewType === filter.id
+                  const Icon = filter.icon
+                  return (
+                    <Button
+                      key={filter.id}
+                      type="button"
+                      variant="ghost"
+                      className={filterTabButtonClass(isActive)}
+                      onClick={() => setDocumentViewType(filter.id)}
+                    >
+                      {Icon ? (
+                        <Icon
+                          className={cn(
+                            'h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0',
+                            isActive ? 'text-white' : filter.iconInactiveClassName ?? 'text-gray-500'
+                          )}
+                        />
+                      ) : null}
+                      <span>
+                        {filter.label}
+                        {filter.count !== undefined ? ` (${filter.count})` : ''}
+                      </span>
+                    </Button>
+                  )
+                })}
                   </div>
             </div>
 
@@ -1747,6 +1665,7 @@ export default function Home() {
           {/* Right Sidebar - Ads (Desktop Only) */}
           <div className="hidden lg:block lg:col-span-1 order-1 lg:order-2">
             <div className="lg:sticky lg:top-24 space-y-4">
+              <HomeDateTime />
               {adsLoading ? (
                 <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
                   <div className="h-6 w-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -1764,10 +1683,10 @@ export default function Home() {
                     rel="noopener noreferrer"
                     className="block w-full"
                   >
-                    <div className="bg-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity">
+                    <div className="bg-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity rounded-xl shadow-sm border border-gray-100">
                       <img
                         src={ad.image}
-                        alt={ad.title || "Advertisement"}
+                        alt={ad.title || 'Advertisement'}
                         className="w-full h-auto object-cover"
                       />
                     </div>
@@ -1777,14 +1696,15 @@ export default function Home() {
             </div>
           </div>
         </div>
-        
+
         {/* Ads Section - Below Documents (Mobile Only) */}
-        <div className="lg:hidden mt-8">
+        <div className="lg:hidden mt-8 space-y-4">
+          <HomeDateTime />
           {adsLoading ? (
             <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
               <div className="h-6 w-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
             </div>
-          ) : ads.length > 0 && (
+          ) : ads.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {ads.map((ad) => (
                 <a
@@ -1794,83 +1714,59 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="block w-full"
                 >
-                  <div className="bg-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity">
+                  <div className="bg-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity rounded-xl shadow-sm border border-gray-100">
                     <img
                       src={ad.image}
-                      alt={ad.title || "Advertisement"}
+                      alt={ad.title || 'Advertisement'}
                       className="w-full h-auto object-cover"
                     />
                   </div>
                 </a>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       </section>
 
-      {/* Upload Recovered Modal */}
-      <ReportFoundModal 
-        open={reportFoundModalOpen} 
-        onOpenChange={setReportFoundModalOpen} 
-      />
-
-      {/* Report Missing Modal */}
-      <ReportLostModal 
-        open={reportLostModalOpen} 
-        onOpenChange={setReportLostModalOpen} 
-      />
-
-      {/* Document Details Modal */}
-      <DocumentDetailsModal 
-        open={documentDetailsModalOpen} 
-        onOpenChange={setDocumentDetailsModalOpen}
-        document={selectedDocument}
-      />
-
       {/* Login Modal */}
       <Dialog open={loginModalOpen} onOpenChange={setLoginModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <div className="flex justify-center mb-4">
-              <Shield className="h-12 w-12 text-blue-600" />
-            </div>
-            <DialogTitle className="text-2xl text-center">Welcome Back</DialogTitle>
-            <DialogDescription className="text-center">
-              Login to your Iyawe account
-            </DialogDescription>
+        <DialogContent className="sm:max-w-sm gap-4 p-6">
+          <DialogHeader className="space-y-0">
+            <DialogTitle>Login</DialogTitle>
+            <DialogDescription className="sr-only">Staff sign in</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="login-email">Email</Label>
               <Input
                 id="login-email"
                 type="email"
-                placeholder="you@example.com"
+                autoComplete="email"
                 value={loginFormData.email}
                 onChange={(e) => setLoginFormData({ ...loginFormData, email: e.target.value })}
                 required
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="login-password">Password</Label>
               <Input
                 id="login-password"
                 type="password"
+                autoComplete="current-password"
                 value={loginFormData.password}
                 onChange={(e) => setLoginFormData({ ...loginFormData, password: e.target.value })}
                 required
               />
             </div>
             <Button type="submit" className="w-full" disabled={loginLoading}>
-              {loginLoading ? 'Logging in...' : 'Login'}
+              {loginLoading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm">
-            <span className="text-gray-600">Don't have an account? </span>
-            <Link href="/register" className="text-blue-600 hover:underline">
-              Sign up
+          <p className="text-center text-xs text-gray-500">
+            <Link href="/register" className="text-blue-700 hover:underline">
+              Register
             </Link>
-          </div>
+          </p>
         </DialogContent>
       </Dialog>
 
@@ -1900,105 +1796,20 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Mobile Floating Button - Report Item */}
-      <div className="fixed bottom-6 right-6 z-50 md:hidden">
-        <Button
-          className="h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all"
-          onClick={() => setReportLostModalOpen(true)}
-          size="lg"
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      </div>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-16">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-            {/* About Section */}
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-2 rounded-lg">
-                  <FileCheck className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-gray-900">UNLF</span>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                United Lost & Found - Connecting lost items with their owners across Rwanda.
-              </p>
-            </div>
-
-            {/* Quick Links */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Quick Links</h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link href="/" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
-                    Home
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/matches" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
-                    Matches
-                  </Link>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setReportLostModalOpen(true)}
-                    className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left"
-                  >
-                    Report Lost Item
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setReportFoundModalOpen(true)}
-                    className="text-sm text-gray-600 hover:text-blue-600 transition-colors text-left"
-                  >
-                    Report Found Item
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            {/* Contact Information */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Contact Us</h3>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-400" />
-                  <a href="mailto:contact@unlf.rw" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
-                    contact@unlf.rw
-                  </a>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-gray-400" />
-                  <a href="tel:+250788123456" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
-                    +250 788 123 456
-                  </a>
-                </li>
-                <li className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">Kigali, Rwanda</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Copyright */}
-          <div className="border-t border-gray-200 pt-6">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-              <p className="text-xs text-gray-500 text-center sm:text-left">
-                © {new Date().getFullYear()} United Lost & Found (UNLF). All rights reserved.
-              </p>
-              <div className="flex items-center gap-4">
-                <a href="#" className="text-xs text-gray-500 hover:text-blue-600 transition-colors">
-                  Privacy Policy
-                </a>
-                <a href="#" className="text-xs text-gray-500 hover:text-blue-600 transition-colors">
-                  Terms of Service
-                </a>
-              </div>
+      {/* Footer — minimal */}
+      <footer className="mt-12 border-t border-gray-200 bg-white">
+        <div className="container mx-auto px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
+            <p className="text-xs text-gray-500">
+              © {new Date().getFullYear()} Subizwa. All rights reserved.
+            </p>
+            <div className="flex items-center gap-6">
+              <a href="#" className="text-xs text-gray-500 transition-colors hover:text-blue-600">
+                Privacy Policy
+              </a>
+              <a href="#" className="text-xs text-gray-500 transition-colors hover:text-blue-600">
+                Terms of Service
+              </a>
             </div>
           </div>
         </div>

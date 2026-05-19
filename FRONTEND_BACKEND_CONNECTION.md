@@ -9,7 +9,15 @@ This document explains how the frontend (Next.js) is connected to the backend (E
 
 ## Configuration
 
-### Environment Variables
+### Email alerts (found document matches)
+
+When a found report matches a lost report, Subizwa sends SMTP emails to the lost owner (guest `reporterEmail` or logged-in user account) and optionally to `ADMIN_ALERT_EMAIL` (defaults to `SMTP_USER`).
+
+Copy SMTP settings from `.env.example` into `.env.local` (Next.js) and `backend/.env` (Express). For Gmail, use an [App Password](https://myaccount.google.com/apppasswords) with spaces removed in `SMTP_PASS`.
+
+Restart `npm run dev` after changing env vars.
+
+## Environment Variables
 
 Create a `.env.local` file in the root directory (same level as `package.json`) with:
 
