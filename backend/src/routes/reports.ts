@@ -212,7 +212,7 @@ router.post('/found', requireRoles(['ADMIN', 'OFFICER', 'INSTITUTION']), upload.
     foundReport.userId = new ObjectId(userId)
 
     // Optional registrar contact info (kept for operational follow-up)
-    if (data.uploaderName) {
+     if (data.uploaderName) {
       foundReport.uploaderName = data.uploaderName
     }
     if (data.uploaderEmail) {
@@ -229,7 +229,7 @@ router.post('/found', requireRoles(['ADMIN', 'OFFICER', 'INSTITUTION']), upload.
     const matches = await findMatchesForFoundReport(result.insertedId.toString())
 
     // Import notification functions
-    const { createUserNotification, createAdminNotification, NotificationType } = await import('../lib/notifications')
+    const { createUserNotification, createAdminNotification, NotificationType } = await import('../lib/notifications.js')
 
     // Check for exact matches and create notifications
     const exactMatches = matches.filter((m: any) => m.isExactMatch === true)
