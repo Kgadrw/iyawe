@@ -1,4 +1,4 @@
-import { MongoClient, Db, Collection, MongoClientOptions } from 'mongodb'
+import { MongoClient, Db, Collection, MongoClientOptions, Document } from 'mongodb'
 
 let client: MongoClient | null = null
 let db: Db | null = null
@@ -95,7 +95,7 @@ export function getDatabase(): Db {
 }
 
 // Collection helpers
-export function getCollection<T = any>(name: string): Collection<T> {
+export function getCollection<T extends Document = Document>(name: string): Collection<T> {
   return getDatabase().collection<T>(name)
 }
 
@@ -110,4 +110,5 @@ export const collections = {
   institutions: () => getCollection('institutions'),
   ads: () => getCollection('ads'),
   notifications: () => getCollection('notifications'),
+  auditLogs: () => getCollection('auditLogs'),
 }

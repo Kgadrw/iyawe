@@ -69,4 +69,5 @@ export const collections = {
   institutions: () => getCollection('institutions'),
   ads: () => getCollection('ads'),
   notifications: () => getCollection('notifications'),
+  auditLogs: () => getCollection('auditLogs'),
 }

@@ -6,10 +6,11 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
-import { Shield, ArrowLeft, Home } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { apiRequest, API_ENDPOINTS } from '@/lib/api'
+import { dashboardPathForStaffRole } from '@/lib/dashboard-routes'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -46,7 +47,8 @@ export default function LoginPage() {
         description: 'Logged in successfully',
       })
 
-      router.push('/dashboard')
+      router.push(dashboardPathForStaffRole(data.user?.role ?? ''))
+      router.refresh()
     } catch (error) {
       toast({
         title: 'Error',
@@ -59,58 +61,52 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <Link href="/" className="absolute top-4 left-4">
-        <Button variant="ghost" className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" className="gap-1.5 text-gray-600">
           <ArrowLeft className="h-4 w-4" />
-          <Home className="h-4 w-4" />
-          Back to Home
+          Back
         </Button>
       </Link>
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Shield className="h-12 w-12 text-blue-600" />
-          </div>
-          <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Login to your Iyawe account</CardDescription>
+      <Card className="w-full max-w-sm border-gray-200 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-semibold">Login</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                autoComplete="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm">
-            <span className="text-gray-600">Don't have an account? </span>
-            <Link href="/register" className="text-blue-600 hover:underline">
-              Sign up
+          <p className="mt-3 text-center text-xs text-gray-500">
+            <Link href="/register" className="text-blue-700 hover:underline">
+              Register
             </Link>
-          </div>
+          </p>
         </CardContent>
       </Card>
     </div>
   )
 }
-

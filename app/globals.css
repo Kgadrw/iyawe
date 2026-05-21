@@ -5,47 +5,54 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 216 68% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 216 68% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 216 68% 12%;
+    /* RNP deep navy */
+    --primary: 216 68% 15%;
+    --primary-foreground: 0 0% 100%;
+    /* RNP light sky */
+    --secondary: 204 65% 94%;
+    --secondary-foreground: 216 68% 15%;
+    --muted: 204 40% 96%;
+    --muted-foreground: 216 25% 40%;
+    --accent: 204 65% 94%;
+    --accent-foreground: 216 68% 15%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 204 35% 88%;
+    --input: 204 35% 88%;
+    /* RNP sky blue focus ring */
+    --ring: 204 65% 55%;
     --radius: 0.5rem;
+    /* Brand tokens */
+    --rnp-navy: 216 68% 15%;
+    --rnp-sky: 204 65% 55%;
+    --rnp-gold: 43 96% 52%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --background: 216 68% 8%;
+    --foreground: 0 0% 98%;
+    --card: 216 68% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 216 68% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 204 65% 55%;
+    --primary-foreground: 216 68% 10%;
+    --secondary: 216 40% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 216 40% 18%;
+    --muted-foreground: 204 30% 65%;
+    --accent: 216 40% 18%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.9%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 216 40% 20%;
+    --input: 216 40% 20%;
+    --ring: 204 65% 55%;
   }
 }
 
@@ -79,4 +86,37 @@
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
+}
+
+/* RNP traffic-sign style header (yellow + white diagonal stripes) */
+@layer components {
+  .traffic-header {
+    @apply relative shadow-md;
+    background-color: #0c2340;
+    border-bottom: 4px solid #f5c518;
+  }
+
+  .traffic-header-stripes {
+    height: 8px;
+    background: repeating-linear-gradient(
+      -45deg,
+      #f5c518 0px,
+      #f5c518 10px,
+      #000000 10px,
+      #000000 20px
+    );
+  }
+
+  .traffic-header-foot {
+    height: 4px;
+    background: #f5c518;
+  }
+
+  .traffic-header-body {
+    @apply text-white;
+  }
+
+  .traffic-header-muted {
+    @apply text-gold-400;
+  }
 }

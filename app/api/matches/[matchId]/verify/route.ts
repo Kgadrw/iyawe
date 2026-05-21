@@ -43,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    const verification = await createVerification(matchId)
+    const verification: any = await createVerification(matchId)
 
     return NextResponse.json({
       message: 'Verification created successfully',

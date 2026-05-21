@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express'
 import { createUser, getUserByEmail, verifyPassword } from '../lib/auth'
 import { z } from 'zod'
 import { SignJWT } from 'jose'
+import { writeAuditLog } from '../lib/audit'
+import { ObjectId } from 'mongodb'
 
 const router = Router()
 
@@ -17,7 +19,7 @@ const registerSchema = z.object({
   password: z.string().min(6),
   name: z.string().min(2),
   phone: z.string().optional(),
-  role: z.enum(['USER', 'INSTITUTION']).optional(),
+  role: z.literal('INSTITUTION').default('INSTITUTION'),
 })
 
 // POST /api/auth/register
@@ -31,20 +33,25 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'User with this email already exists' })
     }
 
-    const user = await createUser(
-      data.email,
-      data.password,
-      data.name,
-      data.phone,
-      data.role === 'INSTITUTION' ? 'INSTITUTION' : 'USER'
-    )
+    const user = await createUser(data.email, data.password, data.name, data.phone, data.role)
+
+    await writeAuditLog({
+      actorUserId: user._id ? new ObjectId(user._id) : null,
+      actorRole: user.role,
+      action: 'AUTH_REGISTER',
+      entityType: 'USER',
+      entityId: user._id ? new ObjectId(user._id) : null,
+      message: 'Institution account registered',
+      metadata: { email: user.email, role: user.role },
+    })
 
     return res.status(201).json({
-      message: 'User created successfully',
+      message: 'Institution account created successfully',
       user: {
         id: user._id!.toString(),
         email: user.email,
         name: user.name,
+        role: user.role,
       },
     })
   } catch (error) {
@@ -79,6 +86,13 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
+    if (user.role === 'USER') {
+      return res.status(403).json({
+        error:
+          'Public accounts cannot log in here. This portal is for admin, police officers, and registered institutions only. Observers can use the site without signing in.',
+      })
+    }
+
     // Create JWT token
     const token = await new SignJWT({
       userId: user._id!.toString(),
@@ -97,6 +111,16 @@ router.post('/login', async (req: Request, res: Response) => {
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days in milliseconds
       path: '/',
+    })
+
+    await writeAuditLog({
+      actorUserId: user._id ? new ObjectId(user._id) : null,
+      actorRole: user.role,
+      action: 'AUTH_LOGIN',
+      entityType: 'USER',
+      entityId: user._id ? new ObjectId(user._id) : null,
+      message: 'User logged in',
+      metadata: { email: user.email, role: user.role },
     })
 
     return res.json({
@@ -120,6 +144,15 @@ router.post('/login', async (req: Request, res: Response) => {
 // POST /api/auth/logout
 router.post('/logout', async (req: Request, res: Response) => {
   res.clearCookie('token', { path: '/' })
+  // Can't reliably identify the user here without verifying token again.
+  await writeAuditLog({
+    actorUserId: null,
+    actorRole: null,
+    action: 'AUTH_LOGOUT',
+    entityType: 'SYSTEM',
+    entityId: null,
+    message: 'User logged out',
+  })
   return res.json({ message: 'Logged out successfully' })
 })
 

@@ -600,56 +600,31 @@ const adSchema = z.object({
 // GET /api/admin/ads - Get all ads (admin only)
 router.get('/ads', async (req: Request, res: Response) => {
   try {
-    console.log('=== GET /api/admin/ads - Request received ===')
-    console.log('Request method:', req.method)
-    console.log('Request URL:', req.url)
-    console.log('Request path:', req.path)
-    console.log('Request query:', JSON.stringify(req.query))
-    console.log('Request params:', JSON.stringify(req.params))
-    console.log('Request body:', req.body)
-    console.log('Content-Type:', req.headers['content-type'])
-    
-    // Test database connection first
-    try {
-      const adsCollection = await collections.ads()
-      console.log('✅ Ads collection accessed successfully')
-      
-      const ads = await adsCollection
-        .find({})
-        .sort({ order: 1, createdAt: -1 })
-        .toArray()
-      
-      console.log(`✅ Found ${ads.length} ads in database`)
+    const adsCollection = await collections.ads()
+    const ads = await adsCollection
+      .find({})
+      .sort({ order: 1, createdAt: -1 })
+      .toArray()
 
-      const adsWithId = ads.map((ad) => ({
-        id: ad._id!.toString(),
-        title: ad.title || '',
-        description: ad.description || '',
-        imageUrl: ad.image || ad.imageUrl || '',
-        image: ad.image || ad.imageUrl || '',
-        link: ad.link || '',
-        isActive: ad.isActive !== undefined ? ad.isActive : true,
-        order: ad.order || 0,
-        createdAt: ad.createdAt,
-        updatedAt: ad.updatedAt,
-      }))
+    const adsWithId = ads.map((ad) => ({
+      id: ad._id!.toString(),
+      title: ad.title || '',
+      description: ad.description || '',
+      imageUrl: ad.image || ad.imageUrl || '',
+      image: ad.image || ad.imageUrl || '',
+      link: ad.link || '',
+      isActive: ad.isActive !== undefined ? ad.isActive : true,
+      order: ad.order || 0,
+      createdAt: ad.createdAt,
+      updatedAt: ad.updatedAt,
+    }))
 
-      console.log(`✅ Returning ${adsWithId.length} ads`)
-      return res.json({ ads: adsWithId })
-    } catch (dbError: any) {
-      console.error('❌ Database error:', dbError)
-      console.error('Database error stack:', dbError.stack)
-      // If collection doesn't exist, return empty array
-      if (dbError.message?.includes('collection') || dbError.code === 26) {
-        console.log('⚠️ Collection issue detected, returning empty array')
-        return res.json({ ads: [] })
-      }
-      throw dbError
-    }
+    return res.json({ ads: adsWithId })
   } catch (error: any) {
-    console.error('❌ Error in GET /api/admin/ads:', error)
-    console.error('Error message:', error.message)
-    console.error('Error stack:', error.stack)
+    console.error('Error in GET /api/admin/ads:', error)
+    if (error.message?.includes('collection') || error.code === 26) {
+      return res.json({ ads: [] })
+    }
     return res.status(500).json({ error: 'Failed to fetch ads', details: error.message })
   }
 })
@@ -657,56 +632,26 @@ router.get('/ads', async (req: Request, res: Response) => {
 // POST /api/admin/ads - Create new ad (admin only)
 router.post('/ads', upload.single('image'), async (req: Request, res: Response) => {
   try {
-    console.log('=== POST /api/admin/ads - Request received ===')
-    console.log('Content-Type:', req.headers['content-type'])
-    console.log('Has file:', !!req.file)
-    console.log('Request body keys:', Object.keys(req.body))
-    console.log('Request body:', JSON.stringify(req.body, null, 2))
-    
-    let bodyData: any = {}
-    let imageBase64: string = ''
-    
-    // Handle file upload first (multer processes this into req.file)
+    let imageBase64 = ''
     if (req.file) {
-      console.log('File uploaded:', req.file.originalname, req.file.mimetype, req.file.size, 'bytes')
       imageBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
-    }
-    
-    // Extract form data (multer makes FormData fields available in req.body)
-    const link = req.body.link || ''
-    const title = req.body.title || ''
-    const description = req.body.description || ''
-    const isActive = req.body.isActive === 'true' || req.body.isActive === true || req.body.isActive === '1' || req.body.isActive === 1
-    const order = req.body.order ? parseInt(req.body.order) : 0
-    
-    // Get image: from file upload if available, otherwise from body (base64 string)
-    if (!imageBase64) {
+    } else {
       imageBase64 = req.body.image || ''
     }
-    
-    bodyData = {
+
+    const bodyData = {
       image: imageBase64,
-      link: link,
-      isActive: isActive,
-      order: order,
+      link: req.body.link || '',
+      isActive: req.body.isActive === 'true' || req.body.isActive === true || req.body.isActive === '1',
+      order: req.body.order ? parseInt(req.body.order) : 0,
     }
 
-    console.log('Body data before validation:', { 
-      hasImage: !!bodyData.image, 
-      imageLength: bodyData.image?.length || 0,
-      imagePreview: bodyData.image?.substring(0, 50) + '...',
-      link: bodyData.link,
-      isActive: bodyData.isActive,
-      order: bodyData.order 
-    })
-
-    // Validate the data
     const data = adSchema.parse(bodyData)
     const now = new Date()
 
     const ad: any = {
-      title: title,
-      description: description,
+      title: req.body.title || '',
+      description: req.body.description || '',
       image: imageBase64,
       link: data.link,
       isActive: data.isActive ?? true,
@@ -715,32 +660,18 @@ router.post('/ads', upload.single('image'), async (req: Request, res: Response) 
       updatedAt: now,
     }
 
-    console.log('Creating ad with:', { 
-      title: ad.title,
-      hasImage: !!ad.image, 
-      imageLength: ad.image?.length || 0,
-      link: ad.link 
-    })
-
     const result = await collections.ads().insertOne(ad)
-    const insertedAd = { ...ad, _id: result.insertedId }
-
-    console.log('✅ Ad created successfully:', result.insertedId.toString())
 
     return res.status(201).json({
       message: 'Ad created successfully',
-      ad: {
-        ...insertedAd,
-        id: result.insertedId.toString(),
-      },
+      ad: { ...ad, id: result.insertedId.toString() },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('❌ Validation error:', error.errors)
       return res.status(400).json({ error: 'Invalid input', details: error.errors })
     }
-    console.error('❌ Error creating ad:', error)
-    return res.status(500).json({ error: 'Failed to create ad', details: error instanceof Error ? error.message : 'Unknown error' })
+    console.error('Error creating ad:', error)
+    return res.status(500).json({ error: 'Failed to create ad' })
   }
 })
 
@@ -748,31 +679,20 @@ router.post('/ads', upload.single('image'), async (req: Request, res: Response) 
 router.put('/ads/:id', upload.single('image'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    
-    let bodyData: any = {}
-    
-    if (req.headers['content-type']?.includes('multipart/form-data')) {
-      bodyData = {
-        image: req.body.image,
-        link: req.body.link,
-        isActive: req.body.isActive === 'true' || req.body.isActive === true,
-        order: req.body.order ? parseInt(req.body.order) : 0,
-      }
-    } else {
-      bodyData = req.body
+    const bodyData = {
+      image: req.body.image,
+      link: req.body.link,
+      isActive: req.body.isActive === 'true' || req.body.isActive === true,
+      order: req.body.order ? parseInt(req.body.order) : 0,
     }
 
     const data = adSchema.partial().parse(bodyData)
 
-    const ad = await collections.ads().findOne({
-      _id: new ObjectId(id),
-    })
-
+    const ad = await collections.ads().findOne({ _id: new ObjectId(id) })
     if (!ad) {
       return res.status(404).json({ error: 'Ad not found' })
     }
 
-    // Convert image to base64 if provided as file
     let imageBase64: string | undefined
     if (req.file) {
       imageBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
@@ -780,30 +700,24 @@ router.put('/ads/:id', upload.single('image'), async (req: Request, res: Respons
       imageBase64 = data.image
     }
 
-    const updateData: any = {
-      ...data,
-      updatedAt: new Date(),
-    }
-
+    const updateData: any = { ...data, updatedAt: new Date() }
     if (imageBase64) {
       updateData.image = imageBase64
     }
+    if (req.body.title !== undefined) {
+      updateData.title = req.body.title
+    }
+    if (req.body.description !== undefined) {
+      updateData.description = req.body.description
+    }
 
-    await collections.ads().updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
-    )
+    await collections.ads().updateOne({ _id: new ObjectId(id) }, { $set: updateData })
 
-    const updatedAd = await collections.ads().findOne({
-      _id: new ObjectId(id),
-    })
+    const updatedAd = await collections.ads().findOne({ _id: new ObjectId(id) })
 
     return res.json({
       message: 'Ad updated successfully',
-      ad: {
-        ...updatedAd,
-        id: updatedAd!._id!.toString(),
-      },
+      ad: { ...updatedAd, id: updatedAd!._id!.toString() },
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -819,10 +733,7 @@ router.delete('/ads/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params
 
-    const ad = await collections.ads().findOne({
-      _id: new ObjectId(id),
-    })
-
+    const ad = await collections.ads().findOne({ _id: new ObjectId(id) })
     if (!ad) {
       return res.status(404).json({ error: 'Ad not found' })
     }

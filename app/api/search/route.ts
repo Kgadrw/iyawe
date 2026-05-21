@@ -37,7 +37,7 @@ function getDocumentTypeFromQuery(query: string): string[] {
     types.push(upperQuery)
   }
   
-  return [...new Set(types)] // Remove duplicates
+  return Array.from(new Set(types)) // Remove duplicates
 }
 
 export async function GET(request: NextRequest) {

@@ -19,6 +19,15 @@ export enum ReportStatus {
   CLOSED = 'CLOSED',
 }
 
+/** Match row returned after creating a match record (used for alerts). */
+export type CreatedMatchRow = {
+  _id: ObjectId
+  lostReportId: ObjectId
+  foundReportId: ObjectId
+  isExactMatch: boolean
+  id: string
+}
+
 /**
  * Hash a document number for secure comparison
  */
@@ -99,7 +108,7 @@ function calculateMatchConfidence(
 /**
  * Find and create matches for a new lost report
  */
-export async function findMatchesForLostReport(lostReportId: string) {
+export async function findMatchesForLostReport(lostReportId: string): Promise<CreatedMatchRow[]> {
   const lostCollection = await collections.lostReports()
   const lostReport = await lostCollection.findOne({ _id: new ObjectId(lostReportId) })
 
@@ -114,7 +123,7 @@ export async function findMatchesForLostReport(lostReportId: string) {
     status: ReportStatus.PENDING,
   }).toArray()
 
-  const matches = []
+  const matches: CreatedMatchRow[] = []
   const matchesCollection = await collections.matches()
 
   for (const foundReport of foundReports) {
@@ -135,15 +144,19 @@ export async function findMatchesForLostReport(lostReportId: string) {
         lostReportId: new ObjectId(lostReportId),
         foundReportId: foundReport._id,
         confidence,
+        isExactMatch,
         status: ReportStatus.PENDING,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       
       const match = await matchesCollection.findOne({ _id: matchResult.insertedId })
-      if (match) {
+      if (match?.lostReportId && match?.foundReportId) {
         matches.push({
-          ...match,
+          _id: match._id,
+          lostReportId: match.lostReportId,
+          foundReportId: match.foundReportId,
+          isExactMatch,
           id: match._id.toString(),
         })
       }
@@ -156,7 +169,7 @@ export async function findMatchesForLostReport(lostReportId: string) {
 /**
  * Find and create matches for a new found report
  */
-export async function findMatchesForFoundReport(foundReportId: string) {
+export async function findMatchesForFoundReport(foundReportId: string): Promise<CreatedMatchRow[]> {
   const foundCollection = await collections.foundReports()
   const foundReport = await foundCollection.findOne({ _id: new ObjectId(foundReportId) })
 
@@ -171,7 +184,7 @@ export async function findMatchesForFoundReport(foundReportId: string) {
     status: ReportStatus.PENDING,
   }).toArray()
 
-  const matches = []
+  const matches: CreatedMatchRow[] = []
   const matchesCollection = await collections.matches()
 
   for (const lostReport of lostReports) {
@@ -200,11 +213,13 @@ export async function findMatchesForFoundReport(foundReportId: string) {
       
       // Return match with exact match flag for notification purposes
       const match = await matchesCollection.findOne({ _id: matchResult.insertedId })
-      if (match) {
+      if (match?.lostReportId && match?.foundReportId) {
         matches.push({
-          ...match,
+          _id: match._id,
+          lostReportId: match.lostReportId,
+          foundReportId: match.foundReportId,
+          isExactMatch,
           id: match._id.toString(),
-          isExactMatch, // Include in return value
         })
       }
     }

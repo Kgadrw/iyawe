@@ -4,6 +4,7 @@ import { findMatchesForLostReport, DocumentType } from '@/lib/matching'
 import { getUserIdFromToken } from '@/lib/middleware'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
+import { writeAuditLog } from '@/lib/audit'
 
 const lostReportSchema = z.object({
   documentType: z.nativeEnum(DocumentType),
@@ -13,33 +14,82 @@ const lostReportSchema = z.object({
   lostLocation: z.string().optional(),
 })
 
+/** Public observers (no staff login) submit contact details with the report. */
+const guestLostReportSchema = lostReportSchema.extend({
+  reporterName: z.string().min(2),
+  reporterEmail: z.string().email(),
+  reporterPhone: z.string().optional(),
+})
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getUserIdFromToken(request)
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await request.json()
-    const data = lostReportSchema.parse(body)
-
     const lostCollection = await collections.lostReports()
-    const result = await lostCollection.insertOne({
-      userId: new ObjectId(userId),
-      documentType: data.documentType,
-      documentNumber: data.documentNumber || null,
-      description: data.description || null,
-      lostDate: data.lostDate ? new Date(data.lostDate) : null,
-      lostLocation: data.lostLocation || null,
-      status: 'PENDING',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
+
+    let result: { insertedId: ObjectId }
+    let auditActorId: ObjectId | null = null
+
+    if (userId) {
+      const data = lostReportSchema.parse(body)
+      result = await lostCollection.insertOne({
+        userId: new ObjectId(userId),
+        documentType: data.documentType,
+        documentNumber: data.documentNumber || null,
+        description: data.description || null,
+        lostDate: data.lostDate ? new Date(data.lostDate) : null,
+        lostLocation: data.lostLocation || null,
+        reporterName: null,
+        reporterEmail: null,
+        reporterPhone: null,
+        status: 'PENDING',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      auditActorId = new ObjectId(userId)
+    } else {
+      const data = guestLostReportSchema.parse(body)
+      result = await lostCollection.insertOne({
+        userId: null,
+        documentType: data.documentType,
+        documentNumber: data.documentNumber || null,
+        description: data.description || null,
+        lostDate: data.lostDate ? new Date(data.lostDate) : null,
+        lostLocation: data.lostLocation || null,
+        reporterName: data.reporterName,
+        reporterEmail: data.reporterEmail,
+        reporterPhone: data.reporterPhone || null,
+        status: 'PENDING',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      auditActorId = null
+    }
 
     const lostReport = await lostCollection.findOne({ _id: result.insertedId })
 
-    // Try to find matches
+    await writeAuditLog({
+      actorUserId: auditActorId,
+      actorRole: null,
+      action: 'REPORT_LOST_CREATE',
+      entityType: 'LOST_REPORT',
+      entityId: result.insertedId as any,
+      message: userId ? 'Lost report created' : 'Guest lost report created',
+      metadata: {
+        documentType: lostReport?.documentType,
+        hasDocumentNumber: !!lostReport?.documentNumber,
+        guest: !userId,
+      },
+    })
+
     const matches = await findMatchesForLostReport(result.insertedId.toString())
+
+    let alertEmailsSent = 0
+    if (matches.length > 0) {
+      const { notifyMatchesForLostUpload } = await import('@/lib/found-match-alerts')
+      const result = await notifyMatchesForLostUpload(matches)
+      alertEmailsSent = result.emailsSent
+    }
 
     return NextResponse.json({
       message: 'Lost report created successfully',
@@ -48,6 +98,7 @@ export async function POST(request: NextRequest) {
         id: lostReport?._id.toString(),
       },
       matchesFound: matches.length,
+      alertEmailsSent,
     }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {

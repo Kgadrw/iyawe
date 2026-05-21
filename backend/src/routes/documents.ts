@@ -14,14 +14,14 @@ router.get('/latest', async (req: Request, res: Response) => {
       .find({})
       .sort({ createdAt: -1 })
       .limit(Math.ceil(limit / 2))
-      .toArray()
+      .toArray() as any[]
 
     // Fetch latest found reports
     const latestFound = type === 'lost' ? [] : await collections.foundReports()
       .find({})
       .sort({ createdAt: -1 })
       .limit(Math.ceil(limit / 2))
-      .toArray()
+      .toArray() as any[]
 
     // Get user info for reports
     const lostWithUsers = await Promise.all(

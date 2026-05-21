@@ -3,8 +3,9 @@
  * Centralized configuration for backend API calls
  */
 
-// Backend API base URL
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+// Same-origin by default so auth cookies (Set-Cookie from /api/auth/*) match the Next.js host.
+// If you point this at a separate API host, you must proxy auth through Next or use a shared cookie domain.
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 /**
  * Make an API request with proper configuration
@@ -52,6 +53,7 @@ export const API_ENDPOINTS = {
   register: '/api/auth/register',
   login: '/api/auth/login',
   logout: '/api/auth/logout',
+  me: '/api/auth/me',
   
   // Reports
   lostReports: '/api/reports/lost',

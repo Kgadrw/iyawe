@@ -40,6 +40,7 @@ export interface Match {
   lostReportId: ObjectId
   foundReportId: ObjectId
   confidence: number
+  isExactMatch?: boolean
   status: 'PENDING' | 'MATCHED' | 'VERIFIED' | 'HANDED_OVER' | 'CLOSED'
   createdAt: Date
   updatedAt: Date
@@ -140,7 +141,7 @@ export async function findMatchesForLostReport(lostReportId: string) {
   const matches = []
 
   for (const foundReport of foundReports) {
-    const confidence = calculateMatchConfidence(
+    const { confidence, isExactMatch } = calculateMatchConfidence(
       lostReport.documentType,
       foundReport.documentType,
       lostReport.documentNumber,
@@ -157,6 +158,7 @@ export async function findMatchesForLostReport(lostReportId: string) {
         lostReportId: new ObjectId(lostReportId),
         foundReportId: foundReport._id!,
         confidence,
+        isExactMatch,
         status: 'PENDING',
         createdAt: new Date(),
         updatedAt: new Date(),
