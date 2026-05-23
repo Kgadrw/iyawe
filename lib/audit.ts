@@ -12,6 +12,8 @@ export type AuditAction =
   | 'NOTIFICATION_READ_UPDATE'
   | 'VERIFY_OWNERSHIP'
   | 'ADMIN_VIEW'
+  | 'ADMIN_CREATE_USER'
+  | 'ADMIN_DELETE_USER'
 
 export type AuditEntityType =
   | 'USER'

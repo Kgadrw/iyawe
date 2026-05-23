@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { collections } from '@/lib/mongodb'
+import { normalizeAdPlacement, type AdPlacement, type PublicAd } from '@/lib/ads'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const adsCollection = await collections.ads()
     const ads = await adsCollection
@@ -9,18 +10,35 @@ export async function GET(request: NextRequest) {
       .sort({ order: 1, createdAt: -1 })
       .toArray()
 
-    const adsWithId = ads.map((ad) => ({
+    const publicAds: PublicAd[] = ads.map((ad) => ({
       id: ad._id!.toString(),
       image: ad.image,
       link: ad.link,
       title: ad.title,
+      placement: normalizeAdPlacement(ad.placement),
+      order: ad.order ?? 0,
     }))
 
-    return NextResponse.json({ ads: adsWithId })
-  } catch (error: any) {
+    const byPlacement: Record<AdPlacement, PublicAd[]> = {
+      BANNER_TOP: [],
+      SIDEBAR_RIGHT: [],
+    }
+    for (const ad of publicAds) {
+      byPlacement[ad.placement].push(ad)
+    }
+    byPlacement.BANNER_TOP = byPlacement.BANNER_TOP.slice(0, 2)
+
+    return NextResponse.json({
+      ads: publicAds,
+      byPlacement,
+      bannerTop: byPlacement.BANNER_TOP,
+      sidebarRight: byPlacement.SIDEBAR_RIGHT,
+    })
+  } catch (error: unknown) {
     console.error('Error fetching ads:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'Failed to fetch ads', details: error.message },
+      { error: 'Failed to fetch ads', details: message },
       { status: 500 }
     )
   }

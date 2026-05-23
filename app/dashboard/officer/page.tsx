@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { ReportFoundModal } from '@/components/ReportFoundModal'
-import { ReportLostModal } from '@/components/ReportLostModal'
+import Link from 'next/link'
 import { API_ENDPOINTS, apiRequest } from '@/lib/api'
 
 type DocReport = {
@@ -13,45 +13,36 @@ type DocReport = {
   documentNumber?: string | null
   status?: string
   createdAt?: string
-  updatedAt?: string
   foundLocation?: string | null
-  lostLocation?: string | null
 }
 
 export default function OfficerDashboardPage() {
   const { toast } = useToast()
-  const [lost, setLost] = useState<DocReport[]>([])
   const [found, setFound] = useState<DocReport[]>([])
   const [loading, setLoading] = useState(true)
-  const [reportLostOpen, setReportLostOpen] = useState(false)
   const [reportFoundOpen, setReportFoundOpen] = useState(false)
+  const [stationName, setStationName] = useState('')
 
   const summary = useMemo(() => {
     const handedOver = found.filter((f) => f.status === 'HANDED_OVER').length
-    const pendingFound = found.filter((f) => !f.status || f.status === 'PENDING').length
-    return { handedOver, pendingFound, lostCount: lost.length, foundCount: found.length }
-  }, [lost, found])
+    const claimPending = found.filter((f) => f.status === 'CLAIM_PENDING').length
+    const atStation = found.filter((f) => !f.status || f.status === 'PENDING').length
+    return { handedOver, claimPending, atStation, foundCount: found.length }
+  }, [found])
 
   const refresh = async () => {
     setLoading(true)
     try {
-      const [lostRes, foundRes] = await Promise.all([
-        apiRequest(API_ENDPOINTS.lostReports),
-        apiRequest(API_ENDPOINTS.foundReports),
-      ])
-
-      const lostData = await lostRes.json()
+      const foundRes = await apiRequest(API_ENDPOINTS.foundReports)
       const foundData = await foundRes.json()
 
-      if (!lostRes.ok) throw new Error(lostData.error || 'Failed to load lost reports')
-      if (!foundRes.ok) throw new Error(foundData.error || 'Failed to load found reports')
+      if (!foundRes.ok) throw new Error(foundData.error || 'Failed to load found documents')
 
-      setLost((lostData.reports || []) as DocReport[])
       setFound((foundData.reports || []) as DocReport[])
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: 'Error',
-        description: e?.message || 'Failed to load dashboard data',
+        description: e instanceof Error ? e.message : 'Failed to load dashboard data',
         variant: 'destructive',
       })
     } finally {
@@ -74,12 +65,12 @@ export default function OfficerDashboardPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to update status')
 
-      toast({ title: 'Updated', description: 'Marked as handed over (found by owner).' })
+      toast({ title: 'Updated', description: 'Document marked as collected by owner.' })
       await refresh()
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: 'Error',
-        description: e?.message || 'Failed to update status',
+        description: e instanceof Error ? e.message : 'Failed to update status',
         variant: 'destructive',
       })
     }
@@ -89,42 +80,51 @@ export default function OfficerDashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            {stationName ? stationName : 'Station documents'}
+          </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Upload lost or found documents under your account. Mark found items handed over when the owner collects them.
+            {stationName
+              ? 'Documents registered at your station only. The public sees this station name when searching.'
+              : 'Register found documents at your station. Set your station name in profile so the public knows where items are held.'}
           </p>
         </div>
 
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setReportLostOpen(true)}>
-            Report Lost
-          </Button>
-          <Button onClick={() => setReportFoundOpen(true)}>Upload Found</Button>
-        </div>
+        <Button onClick={() => setReportFoundOpen(true)}>Register found document</Button>
       </div>
+
+      {!stationName ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Add your station name in{' '}
+          <Link href="/dashboard/officer/account" className="font-medium underline">
+            profile
+          </Link>{' '}
+          (e.g. Station Muhima Downtown) so claimants know where to collect documents.
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border bg-white p-4">
-          <div className="text-sm text-slate-600">My lost reports</div>
-          <div className="mt-2 text-2xl font-semibold">{summary.lostCount}</div>
-        </div>
-        <div className="rounded-lg border bg-white p-4">
-          <div className="text-sm text-slate-600">My found uploads</div>
+          <div className="text-sm text-slate-600">Total registered</div>
           <div className="mt-2 text-2xl font-semibold">{summary.foundCount}</div>
         </div>
         <div className="rounded-lg border bg-white p-4">
-          <div className="text-sm text-slate-600">Pending found</div>
-          <div className="mt-2 text-2xl font-semibold">{summary.pendingFound}</div>
+          <div className="text-sm text-slate-600">At station</div>
+          <div className="mt-2 text-2xl font-semibold">{summary.atStation}</div>
         </div>
         <div className="rounded-lg border bg-white p-4">
-          <div className="text-sm text-slate-600">Handed over</div>
+          <div className="text-sm text-slate-600">Claims pending</div>
+          <div className="mt-2 text-2xl font-semibold">{summary.claimPending}</div>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <div className="text-sm text-slate-600">Collected</div>
           <div className="mt-2 text-2xl font-semibold">{summary.handedOver}</div>
         </div>
       </div>
 
       <div className="rounded-lg border bg-white">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">Found uploads</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Found documents</h2>
           <Button variant="ghost" onClick={refresh} disabled={loading}>
             Refresh
           </Button>
@@ -152,7 +152,7 @@ export default function OfficerDashboardPage() {
                       disabled={(r.status || 'PENDING') === 'HANDED_OVER'}
                       onClick={() => markFoundHandover(r.id)}
                     >
-                      Mark handed over
+                      Mark collected
                     </Button>
                   </td>
                 </tr>
@@ -160,7 +160,7 @@ export default function OfficerDashboardPage() {
               {!loading && found.length === 0 ? (
                 <tr>
                   <td className="px-4 py-6 text-slate-600" colSpan={4}>
-                    No found uploads yet.
+                    No documents registered yet.
                   </td>
                 </tr>
               ) : null}
@@ -169,48 +169,6 @@ export default function OfficerDashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border bg-white">
-        <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">Lost reports</h2>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-600">
-              <tr>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Location</th>
-                <th className="px-4 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {lost.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium">{String(r.documentType).replace(/_/g, ' ')}</td>
-                  <td className="px-4 py-3 text-slate-700">{r.lostLocation || '-'}</td>
-                  <td className="px-4 py-3">{r.status || 'PENDING'}</td>
-                </tr>
-              ))}
-              {!loading && lost.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-6 text-slate-600" colSpan={3}>
-                    No lost reports yet.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <ReportLostModal
-        variant="staff"
-        open={reportLostOpen}
-        onOpenChange={(open) => {
-          setReportLostOpen(open)
-          if (!open) refresh()
-        }}
-      />
       <ReportFoundModal
         open={reportFoundOpen}
         onOpenChange={(open) => {
@@ -221,4 +179,3 @@ export default function OfficerDashboardPage() {
     </div>
   )
 }
-

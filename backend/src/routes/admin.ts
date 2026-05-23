@@ -275,6 +275,51 @@ router.delete('/institutions/:id', async (req: Request, res: Response) => {
   }
 })
 
+const createStaffSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().min(2),
+  phone: z.string().optional(),
+  role: z.enum(['OFFICER', 'INSTITUTION']),
+})
+
+// POST /api/admin/users - Create officer or institution account
+router.post('/users', async (req: Request, res: Response) => {
+  try {
+    const data = createStaffSchema.parse(req.body)
+
+    const existingUser = await collections.users().findOne({ email: data.email.toLowerCase() })
+    if (existingUser) {
+      return res.status(400).json({ error: 'User with this email already exists' })
+    }
+
+    const { createUser } = await import('../lib/auth')
+    const user = await createUser(
+      data.email.trim().toLowerCase(),
+      data.password,
+      data.name.trim(),
+      data.phone?.trim(),
+      data.role
+    )
+
+    return res.status(201).json({
+      message: `${data.role} account created successfully`,
+      user: {
+        id: user._id!.toString(),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors })
+    }
+    console.error('Error creating staff user:', error)
+    return res.status(500).json({ error: 'Failed to create user' })
+  }
+})
+
 // GET /api/admin/users - Get all users
 router.get('/users', async (req: Request, res: Response) => {
   try {
@@ -589,12 +634,29 @@ router.delete('/reports/found/:id', async (req: Request, res: Response) => {
   }
 })
 
+const AD_PLACEMENTS = ['BANNER_TOP', 'SIDEBAR_RIGHT'] as const
+const BANNER_TOP_MAX = 2
+
+function normalizePlacement(value: unknown): (typeof AD_PLACEMENTS)[number] {
+  if (value === 'BANNER_TOP' || value === 'SIDEBAR_RIGHT') return value
+  return 'SIDEBAR_RIGHT'
+}
+
+async function countActiveBannerTop(excludeId?: string) {
+  const filter: Record<string, unknown> = { isActive: true, placement: 'BANNER_TOP' }
+  if (excludeId) {
+    filter._id = { $ne: new ObjectId(excludeId) }
+  }
+  return collections.ads().countDocuments(filter)
+}
+
 // Ads schema
 const adSchema = z.object({
   image: z.string().min(1, 'Image is required'),
   link: z.string().url('Link must be a valid URL'),
   isActive: z.boolean().optional().default(true),
   order: z.number().optional().default(0),
+  placement: z.enum(AD_PLACEMENTS).optional().default('SIDEBAR_RIGHT'),
 })
 
 // GET /api/admin/ads - Get all ads (admin only)
@@ -615,6 +677,7 @@ router.get('/ads', async (req: Request, res: Response) => {
       link: ad.link || '',
       isActive: ad.isActive !== undefined ? ad.isActive : true,
       order: ad.order || 0,
+      placement: normalizePlacement(ad.placement),
       createdAt: ad.createdAt,
       updatedAt: ad.updatedAt,
     }))
@@ -639,14 +702,29 @@ router.post('/ads', upload.single('image'), async (req: Request, res: Response) 
       imageBase64 = req.body.image || ''
     }
 
+    const placement = normalizePlacement(req.body.placement)
+    const isActive =
+      req.body.isActive === 'true' || req.body.isActive === true || req.body.isActive === '1'
+
     const bodyData = {
       image: imageBase64,
       link: req.body.link || '',
-      isActive: req.body.isActive === 'true' || req.body.isActive === true || req.body.isActive === '1',
+      isActive,
       order: req.body.order ? parseInt(req.body.order) : 0,
+      placement,
     }
 
     const data = adSchema.parse(bodyData)
+
+    if (data.placement === 'BANNER_TOP' && data.isActive !== false) {
+      const bannerCount = await countActiveBannerTop()
+      if (bannerCount >= BANNER_TOP_MAX) {
+        return res.status(400).json({
+          error: `Only ${BANNER_TOP_MAX} active banner ads are allowed below the header.`,
+        })
+      }
+    }
+
     const now = new Date()
 
     const ad: any = {
@@ -656,6 +734,7 @@ router.post('/ads', upload.single('image'), async (req: Request, res: Response) 
       link: data.link,
       isActive: data.isActive ?? true,
       order: data.order ?? 0,
+      placement: data.placement,
       createdAt: now,
       updatedAt: now,
     }
@@ -679,19 +758,48 @@ router.post('/ads', upload.single('image'), async (req: Request, res: Response) 
 router.put('/ads/:id', upload.single('image'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    const bodyData = {
-      image: req.body.image,
-      link: req.body.link,
-      isActive: req.body.isActive === 'true' || req.body.isActive === true,
-      order: req.body.order ? parseInt(req.body.order) : 0,
-    }
-
-    const data = adSchema.partial().parse(bodyData)
 
     const ad = await collections.ads().findOne({ _id: new ObjectId(id) })
     if (!ad) {
       return res.status(404).json({ error: 'Ad not found' })
     }
+
+    const placement =
+      req.body.placement !== undefined
+        ? normalizePlacement(req.body.placement)
+        : normalizePlacement(ad.placement)
+
+    const bodyData = {
+      image: req.body.image,
+      link: req.body.link,
+      isActive:
+        req.body.isActive !== undefined && req.body.isActive !== ''
+          ? req.body.isActive === 'true' || req.body.isActive === true
+          : undefined,
+      order: req.body.order !== undefined && req.body.order !== '' ? parseInt(req.body.order) : undefined,
+      placement,
+    }
+
+    const parsed = adSchema.partial().parse({
+      ...bodyData,
+      image: bodyData.image || ad.image || 'placeholder',
+      link: bodyData.link || ad.link,
+    })
+
+    const nextPlacement = parsed.placement ?? normalizePlacement(ad.placement)
+    const nextActive =
+      parsed.isActive !== undefined ? parsed.isActive : ad.isActive !== false
+
+    if (nextPlacement === 'BANNER_TOP' && nextActive) {
+      const bannerCount = await countActiveBannerTop(id)
+      if (bannerCount >= BANNER_TOP_MAX) {
+        return res.status(400).json({
+          error: `Only ${BANNER_TOP_MAX} active banner ads are allowed below the header.`,
+        })
+      }
+    }
+
+    const data = parsed
 
     let imageBase64: string | undefined
     if (req.file) {
@@ -700,7 +808,12 @@ router.put('/ads/:id', upload.single('image'), async (req: Request, res: Respons
       imageBase64 = data.image
     }
 
-    const updateData: any = { ...data, updatedAt: new Date() }
+    const updateData: any = {
+      ...data,
+      placement: nextPlacement,
+      isActive: nextActive,
+      updatedAt: new Date(),
+    }
     if (imageBase64) {
       updateData.image = imageBase64
     }

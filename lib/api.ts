@@ -49,9 +49,11 @@ export const API_ENDPOINTS = {
   logout: '/api/auth/logout',
   me: '/api/auth/me',
   
-  // Reports
-  lostReports: '/api/reports/lost',
+  // Reports & claims
   foundReports: '/api/reports/found',
+  lostReports: '/api/reports/lost', // legacy / admin only
+  claims: '/api/claims',
+  documentWatch: '/api/document-watch',
   
   // Matches
   matchVerify: (matchId: string) => `/api/matches/${matchId}/verify`,
@@ -68,4 +70,8 @@ export const API_ENDPOINTS = {
   
   // Institutions
   institutions: '/api/institutions',
+
+  // Admin
+  adminUsers: '/api/admin/users',
+  adminUser: (id: string) => `/api/admin/users/${id}`,
 }
