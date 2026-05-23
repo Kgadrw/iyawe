@@ -9,16 +9,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
 import { apiRequest, API_ENDPOINTS } from '@/lib/api'
 import { registerRoleLabel } from '@/lib/dashboard-routes'
-import { User, Mail, Phone, Shield, ArrowLeft, Pencil } from 'lucide-react'
+import { User, Mail, Phone, Shield, ArrowLeft, Pencil, Building2 } from 'lucide-react'
 
 type Profile = {
   id: string
   email: string
   name: string
   phone: string
+  stationName?: string
   role: string
   createdAt?: string
 }
+
+const STAFF_STATION_ROLES = ['OFFICER', 'INSTITUTION']
 
 function profileInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -71,6 +74,7 @@ export default function OfficerAccountPage() {
     name: '',
     email: '',
     phone: '',
+    stationName: '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -94,6 +98,7 @@ export default function OfficerAccountPage() {
           name: data.user.name || '',
           email: data.user.email || '',
           phone: data.user.phone || '',
+          stationName: data.user.stationName || '',
           currentPassword: '',
           newPassword: '',
           confirmPassword: '',
@@ -116,6 +121,7 @@ export default function OfficerAccountPage() {
       form.name.trim() !== (profile.name || '').trim() ||
       form.email.trim() !== (profile.email || '').trim() ||
       form.phone.trim() !== (profile.phone || '').trim() ||
+      form.stationName.trim() !== (profile.stationName || '').trim() ||
       !!form.newPassword
     )
   }, [profile, form])
@@ -138,6 +144,9 @@ export default function OfficerAccountPage() {
         name: form.name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
+      }
+      if (profile && STAFF_STATION_ROLES.includes(profile.role)) {
+        body.stationName = form.stationName.trim()
       }
       if (form.newPassword) {
         body.currentPassword = form.currentPassword
@@ -165,6 +174,7 @@ export default function OfficerAccountPage() {
         name: data.user.name || '',
         email: data.user.email || '',
         phone: data.user.phone || '',
+        stationName: data.user.stationName || '',
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
@@ -243,6 +253,13 @@ export default function OfficerAccountPage() {
             </div>
 
             <div className="mt-2">
+              {STAFF_STATION_ROLES.includes(profile.role) ? (
+                <ProfileField
+                  icon={Building2}
+                  label="Station name"
+                  value={profile.stationName || 'Not set — edit to add'}
+                />
+              ) : null}
               <ProfileField icon={Mail} label="Email" value={profile.email} />
               <ProfileField icon={Phone} label="Phone" value={profile.phone} />
               <ProfileField icon={Shield} label="Role" value={registerRoleLabel(profile.role)} />
@@ -297,6 +314,20 @@ export default function OfficerAccountPage() {
                     autoComplete="tel"
                   />
                 </div>
+                {STAFF_STATION_ROLES.includes(profile.role) ? (
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="stationName">Station name</Label>
+                    <Input
+                      id="stationName"
+                      placeholder="e.g. Station Muhima Downtown"
+                      value={form.stationName}
+                      onChange={(e) => setForm({ ...form, stationName: e.target.value })}
+                    />
+                    <p className="text-xs text-slate-500">
+                      Shown on the public site so people know which station holds each document.
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <div className="border-t border-slate-200 pt-6 space-y-4">
@@ -347,6 +378,7 @@ export default function OfficerAccountPage() {
                       name: profile.name || '',
                       email: profile.email || '',
                       phone: profile.phone || '',
+                      stationName: profile.stationName || '',
                       currentPassword: '',
                       newPassword: '',
                       confirmPassword: '',

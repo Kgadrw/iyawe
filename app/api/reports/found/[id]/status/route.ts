@@ -4,9 +4,10 @@ import { getUserFromToken, getUserIdFromToken } from '@/lib/middleware'
 import { ObjectId } from 'mongodb'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
+import { getStaffStationContext, staffCanManageFoundReport } from '@/lib/station-scope'
 
 const bodySchema = z.object({
-  status: z.enum(['PENDING', 'MATCHED', 'VERIFIED', 'HANDED_OVER']),
+  status: z.enum(['PENDING', 'CLAIM_PENDING', 'MATCHED', 'VERIFIED', 'HANDED_OVER']),
   note: z.string().optional(),
 })
 
@@ -27,10 +28,16 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const report = await foundCollection.findOne({ _id: new ObjectId(id) })
     if (!report) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
 
-    // Officers/institutions can update only their own reports; admin can update all.
     if (user.role !== 'ADMIN') {
-      const ownerId = report.userId?.toString?.() || String(report.userId)
-      if (ownerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      const stationCtx = await getStaffStationContext(userId)
+      if (
+        !staffCanManageFoundReport(stationCtx, {
+          userId: report.userId as ObjectId | string | undefined,
+          stationName: (report as { stationName?: string | null }).stationName,
+        })
+      ) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     await foundCollection.updateOne(

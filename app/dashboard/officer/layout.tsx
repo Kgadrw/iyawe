@@ -1,11 +1,14 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUserFromCookie } from '@/lib/server-auth'
+import { getStaffStationContext } from '@/lib/station-scope'
 
 export default async function OfficerLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUserFromCookie()
   if (!user) redirect('/login')
   if (user.role !== 'OFFICER' && user.role !== 'ADMIN' && user.role !== 'INSTITUTION') redirect('/dashboard')
+
+  const stationCtx = await getStaffStationContext(user.userId)
 
   const roleLabel =
     user.role === 'ADMIN' ? 'Admin (Officer view)' : user.role === 'INSTITUTION' ? 'Institution' : 'Officer'
@@ -35,6 +38,11 @@ export default async function OfficerLayout({ children }: { children: React.Reac
           </div>
 
           <div className="flex items-center gap-3 text-sm traffic-header-muted">
+            {stationCtx.stationName ? (
+              <span className="hidden md:inline max-w-[200px] truncate" title={stationCtx.stationName}>
+                {stationCtx.stationName}
+              </span>
+            ) : null}
             <Link href="/dashboard/officer/account" className="hidden sm:inline hover:text-white">
               {user.email}
             </Link>

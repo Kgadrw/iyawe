@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { collections } from '@/lib/mongodb'
-import { findMatchesForFoundReport, DocumentType } from '@/lib/matching'
+import { DocumentType } from '@/lib/matching'
 import { getUserFromToken, getUserIdFromToken } from '@/lib/middleware'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
 import { writeAuditLog } from '@/lib/audit'
+import { getStaffStationContext, foundReportsFilterForStaff } from '@/lib/station-scope'
 
 const foundReportSchema = z.object({
   documentType: z.nativeEnum(DocumentType),
@@ -55,21 +56,18 @@ export async function POST(request: NextRequest) {
       metadata: { documentType: data.documentType, hasDocumentNumber: !!data.documentNumber, hasImage: !!data.image },
     })
 
-    const matches = await findMatchesForFoundReport(result.insertedId.toString())
-    const exactMatches = matches.filter((m) => m.isExactMatch === true)
-
-    const { notifyMatchesForFoundUpload } = await import('@/lib/found-match-alerts')
-    const { emailsSent } = await notifyMatchesForFoundUpload(matches)
+    const { notifyWatchersForFoundReport } = await import('@/lib/document-watch')
+    const { notified: watchAlertsSent } = await notifyWatchersForFoundReport(
+      result.insertedId.toString()
+    )
 
     return NextResponse.json({
-      message: 'Found report created successfully',
+      message: 'Found document registered at station successfully',
       report: {
         ...foundReport,
         id: foundReport?._id.toString(),
       },
-      matchesFound: matches.length,
-      exactMatchesFound: exactMatches.length,
-      alertEmailsSent: emailsSent,
+      watchAlertsSent,
     }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -93,10 +91,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const sessionUser = await getUserFromToken(request)
+    if (!sessionUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const stationCtx = await getStaffStationContext(userId)
     const foundCollection = await collections.foundReports()
-    const reports = await foundCollection.find({
-      userId: new ObjectId(userId),
-    })
+    const reports = await foundCollection
+      .find(foundReportsFilterForStaff(stationCtx))
       .sort({ createdAt: -1 })
       .toArray()
 

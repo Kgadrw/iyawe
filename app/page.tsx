@@ -11,12 +11,22 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
-import { Search, CheckCircle, Building2, Calendar, Ticket, Compass, MessageCircle, FileQuestion, FileCheck, MapPin, Clock, Filter, LogIn, User, Mail, Phone, Hash, FileText, ArrowLeft, X, ChevronDown, ChevronUp, AlertCircle, Heart, Award, AlertTriangle, Navigation, Info, Lock, Users, Eye, Menu } from 'lucide-react'
+import { Search, CheckCircle, Building2, Calendar, Ticket, Compass, MessageCircle, FileQuestion, FileCheck, MapPin, Clock, Filter, LogIn, User, Mail, Phone, Hash, FileText, ArrowLeft, X, ChevronDown, ChevronUp, AlertCircle, Heart, Award, AlertTriangle, Info, Lock, Users, Eye, Menu } from 'lucide-react'
 import { apiRequest, API_ENDPOINTS } from '@/lib/api'
+import { flattenSearchResults } from '@/lib/search-results'
+import {
+  applyCategoryFilter,
+  applyDocumentViewFilter,
+  getDocumentViewCounts,
+  getEmptyFilterMessage,
+  type DocumentViewType,
+} from '@/lib/document-view-filters'
 import { dashboardPathForStaffRole } from '@/lib/dashboard-routes'
 import { cn } from '@/lib/utils'
-import { HomeDateTime } from '@/components/HomeDateTime'
-
+import { ClaimDocumentModal, type ClaimableDocument } from '@/components/ClaimDocumentModal'
+import { DocumentWatchModal } from '@/components/DocumentWatchModal'
+import { AdBannerTopRow, AdSidebarStack } from '@/components/AdSlots'
+import type { PublicAd } from '@/lib/ads'
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
@@ -27,13 +37,14 @@ export default function Home() {
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [handoverPoints, setHandoverPoints] = useState<any[]>([])
   const [handoverPointsLoading, setHandoverPointsLoading] = useState(true)
-  const [ads, setAds] = useState<any[]>([])
+  const [bannerAds, setBannerAds] = useState<PublicAd[]>([])
+  const [sidebarAds, setSidebarAds] = useState<PublicAd[]>([])
   const [adsLoading, setAdsLoading] = useState(true)
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
-  const [documentViewType, setDocumentViewType] = useState<'all' | 'lost' | 'found' | 'urgent' | 'reunited' | 'nearby'>('all')
+  const [documentViewType, setDocumentViewType] = useState<DocumentViewType>('all')
   const [allDocumentsForCounts, setAllDocumentsForCounts] = useState<any[]>([])
   const [loginModalOpen, setLoginModalOpen] = useState(false)
   const [loginLoading, setLoginLoading] = useState(false)
@@ -47,6 +58,9 @@ export default function Home() {
   const [viewingImage, setViewingImage] = useState<{ url: string; alt: string } | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [urgentDocuments, setUrgentDocuments] = useState<any[]>([])
+  const [claimModalOpen, setClaimModalOpen] = useState(false)
+  const [claimDocument, setClaimDocument] = useState<ClaimableDocument | null>(null)
+  const [watchModalOpen, setWatchModalOpen] = useState(false)
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const router = useRouter()
   const { toast } = useToast()
@@ -118,16 +132,15 @@ export default function Home() {
       // Build query parameters
       const params = new URLSearchParams()
       // For special filters, increase limit to get all matching documents
-      const limitValue = (documentViewType === 'urgent' || documentViewType === 'reunited' || documentViewType === 'nearby') ? '1000' : '50'
+      const limitValue =
+        documentViewType === 'urgent' ||
+        documentViewType === 'claimed' ||
+        documentViewType === 'collected'
+          ? '1000'
+          : '50'
       params.append('limit', limitValue)
-      
-      // Add type filter if not 'all', 'urgent', 'reunited', or 'nearby'
-      if (documentViewType !== 'all' && documentViewType !== 'urgent' && documentViewType !== 'reunited' && documentViewType !== 'nearby') {
-        params.append('type', documentViewType)
-      }
-      
-      // Add special filter for urgent, reunited, nearby
-      if (documentViewType === 'urgent' || documentViewType === 'reunited' || documentViewType === 'nearby') {
+
+      if (documentViewType !== 'all') {
         params.append('filter', documentViewType)
       }
       
@@ -144,8 +157,11 @@ export default function Home() {
       if (data.error || !response.ok) {
         console.error('API Error:', data.error, data.details)
         toast({
-          title: 'Database Connection Error',
-          description: data.details || data.error || 'Failed to connect to database. Please check your MongoDB connection string in the .env file.',
+          title: 'Database connection error',
+          description:
+            data.details ||
+            data.error ||
+            'Check DATABASE_URL in .env.local and restart npm run dev.',
           variant: 'destructive',
         })
         setLatestDocuments([])
@@ -153,9 +169,6 @@ export default function Home() {
       }
       
       let documents = data.documents || []
-      
-      // Filters are now applied at the API level, but we can do additional client-side filtering if needed
-      // The API already handles urgent, reunited, and nearby filters
       
       // Ensure all documents have the required fields
       const normalizedDocuments = documents.map((doc: any) => ({
@@ -171,6 +184,7 @@ export default function Home() {
         reportDate: doc.reportDate || doc.lostDate || doc.foundDate || doc.createdAt,
         image: doc.image || null,
         user: doc.user || null,
+        station: doc.station || null,
       }))
       
       setLatestDocuments(normalizedDocuments)
@@ -265,7 +279,8 @@ export default function Home() {
         const response = await fetch('/api/ads')
         if (response.ok) {
           const data = await response.json()
-          setAds(data.ads || [])
+          setBannerAds(data.bannerTop || data.byPlacement?.BANNER_TOP || [])
+          setSidebarAds(data.sidebarRight || data.byPlacement?.SIDEBAR_RIGHT || [])
         }
       } catch (error) {
         console.error('Error fetching ads:', error)
@@ -305,21 +320,18 @@ export default function Home() {
         const data = await response.json()
         
         if (response.ok) {
-          // Combine lost and found results for suggestions (limit to 5 each)
-          const allSuggestions = [
-            ...(data.results?.lostReports || []).slice(0, 5).map((r: any) => ({ 
-              ...r, 
-              type: 'lost', 
-              reportDate: r.lostDate || r.createdAt,
-              displayText: `${r.documentType?.replace(/_/g, ' ') || 'Document'} - ${r.description || r.lostLocation || ''}`.substring(0, 60)
-            })),
-            ...(data.results?.foundReports || []).slice(0, 5).map((r: any) => ({ 
-              ...r, 
-              type: 'found', 
-              reportDate: r.foundDate || r.createdAt,
-              displayText: `${r.documentType?.replace(/_/g, ' ') || 'Document'} - ${r.description || r.foundLocation || ''}`.substring(0, 60)
-            })),
-          ]
+          const allSuggestions = flattenSearchResults(data)
+            .slice(0, 8)
+            .map((r: any) => {
+              const typeLabel = r.documentType?.replace(/_/g, ' ') || 'Document'
+              const num = r.documentNumber ? ` · ${r.documentNumber}` : ''
+              const detail =
+                r.lostLocation || r.foundLocation || r.description || r.user?.name || ''
+              return {
+                ...r,
+                displayText: `${typeLabel}${num}${detail ? ` — ${detail}` : ''}`.substring(0, 80),
+              }
+            })
           setSuggestions(allSuggestions)
           setShowSuggestions(true)
           setSelectedSuggestionIndex(-1)
@@ -372,12 +384,7 @@ export default function Home() {
       const data = await response.json()
       
       if (response.ok) {
-        // Combine lost and found results
-        const allResults = [
-          ...(data.results?.lostReports || []).map((r: any) => ({ ...r, type: 'lost', reportDate: r.lostDate || r.createdAt })),
-          ...(data.results?.foundReports || []).map((r: any) => ({ ...r, type: 'found', reportDate: r.foundDate || r.createdAt })),
-        ]
-        setSearchResults(allResults)
+        setSearchResults(flattenSearchResults(data))
       } else {
         setSearchResults([])
         console.error('Search error:', data.error)
@@ -498,34 +505,49 @@ export default function Home() {
     fetchAllForCounts()
   }, [])
 
-  // Calculate counts for status filters
-  const lostCount = allDocumentsForCounts.filter(doc => doc.type === 'lost').length
-  const foundCount = allDocumentsForCounts.filter(doc => doc.type === 'found').length
-  const urgentCount = allDocumentsForCounts.filter(doc => doc.isUrgent === true).length
-  const reunitedCount = allDocumentsForCounts.filter(doc => 
-    doc.status === 'MATCHED' || 
-    doc.status === 'VERIFIED' || 
-    doc.status === 'HANDED_OVER'
-  ).length
-  const nearbyCount = allDocumentsForCounts.filter(doc => 
-    (doc.lostLocation && doc.lostLocation.trim() !== '') || 
-    (doc.foundLocation && doc.foundLocation.trim() !== '')
-  ).length
+  const filterCounts = getDocumentViewCounts(allDocumentsForCounts)
 
   const documentViewFilters: {
-    id: typeof documentViewType
+    id: DocumentViewType
     label: string
     count?: number
     icon?: typeof AlertCircle
     iconInactiveClassName?: string
   }[] = [
-    { id: 'all', label: 'All Items' },
-    { id: 'lost', label: 'Lost', count: lostCount, icon: AlertCircle },
-    { id: 'found', label: 'Found', count: foundCount, icon: CheckCircle },
-    { id: 'reunited', label: 'Reunited', count: reunitedCount, icon: Heart },
-    { id: 'urgent', label: 'Urgent', count: urgentCount, icon: AlertTriangle, iconInactiveClassName: 'text-orange-500' },
-    { id: 'nearby', label: 'Nearby', count: nearbyCount, icon: Navigation },
+    { id: 'all', label: 'All Items', count: filterCounts.all },
+    { id: 'available', label: 'At station', count: filterCounts.available, icon: CheckCircle },
+    { id: 'claimed', label: 'Claimed', count: filterCounts.claimed, icon: AlertCircle },
+    { id: 'collected', label: 'Collected', count: filterCounts.collected, icon: Heart },
+    { id: 'urgent', label: 'Urgent', count: filterCounts.urgent, icon: AlertTriangle, iconInactiveClassName: 'text-orange-500' },
   ]
+
+  const openClaimModal = (doc: ClaimableDocument) => {
+    if (doc.status && doc.status !== 'PENDING') {
+      toast({
+        title: 'Not available',
+        description:
+          doc.status === 'HANDED_OVER'
+            ? 'This document has already been collected.'
+            : 'A claim is already pending for this document.',
+      })
+      return
+    }
+    setClaimDocument(doc)
+    setClaimModalOpen(true)
+  }
+
+  const handleDocumentViewChange = (view: DocumentViewType) => {
+    setDocumentViewType(view)
+    setShowSearchResults(false)
+    setSearchQuery('')
+    setSearchResults([])
+  }
+
+  const filterDocumentsForDisplay = (documents: typeof latestDocuments) =>
+    applyCategoryFilter(
+      applyDocumentViewFilter(documents, documentViewType),
+      selectedCategory
+    )
 
   const filterTabButtonClass = (isActive: boolean) =>
     cn(
@@ -553,7 +575,7 @@ export default function Home() {
                       </p>
                     ) : (
                       <p className="text-[10px] sm:text-sm font-semibold line-clamp-1">
-                        🚨 URGENT: {doc.type === 'lost' ? 'Lost' : 'Found'} {doc.documentNumber 
+                        🚨 URGENT: Found {doc.documentNumber 
                           ? (
                             <>
                               <span className="font-bold not-italic">{doc.documentType?.replace(/_/g, ' ').toUpperCase() || 'DOCUMENT'}:</span>
@@ -581,17 +603,17 @@ export default function Home() {
             <Link href="/" className="group flex flex-shrink-0 items-center">
               <div className="flex flex-col">
                 <span className="text-base sm:text-3xl font-bold text-white tracking-tight group-hover:opacity-90 transition-opacity">Subizwa</span>
-                <span className="text-xs text-gold-400 font-semibold hidden sm:block uppercase tracking-wide">Lost & found platform</span>
+                <span className="text-xs text-gold-400 font-semibold hidden sm:block uppercase tracking-wide">Found documents recovery</span>
               </div>
             </Link>
 
             {/* Desktop search — grows toward staff / login controls */}
             <div className="relative hidden min-w-0 flex-1 lg:flex lg:pl-1 lg:pr-2" ref={navSearchRef}>
-              <div className="w-full bg-white border border-gray-300 rounded-[1.5rem] transition-all duration-200">
+              <div className="w-full bg-white border border-gray-300 rounded-[1.5rem] transition-all duration-200 text-blue-900">
                 <div className="flex items-center gap-0 p-1.5">
                   {/* Search Input */}
                   <div className="relative flex-1 flex items-center min-w-0">
-                    <Search className="absolute left-3 h-4 w-4 text-gray-400 z-10" />
+                    <Search className="absolute left-3 h-4 w-4 text-blue-900/45 z-10" />
                     <Input
                       type="text"
                       placeholder="Search items, documents, locations..."
@@ -607,7 +629,7 @@ export default function Home() {
                           setShowSuggestions(true)
                         }
                       }}
-                      className="flex-1 h-10 pl-10 pr-3 text-sm border-0 focus-visible:ring-0 focus-visible:outline-none bg-transparent"
+                      className="flex-1 h-10 pl-10 pr-3 text-sm text-blue-900 placeholder:text-blue-900/45 border-0 focus-visible:ring-0 focus-visible:outline-none bg-transparent"
                     />
                   </div>
 
@@ -680,11 +702,11 @@ export default function Home() {
 
               {/* Desktop Suggestions Dropdown */}
               {showSuggestions && searchQuery.trim() && (
-                <div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[2rem] z-50 max-h-96 overflow-y-auto border border-gray-100">
+                <div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[2rem] z-50 max-h-96 overflow-y-auto border border-gray-100 text-blue-900">
                   {suggestionsLoading ? (
                     <div className="p-4 text-center">
                       <div className="h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                      <p className="text-sm text-gray-500 mt-2">Searching...</p>
+                      <p className="text-sm text-blue-900/60 mt-2">Searching...</p>
                     </div>
                   ) : suggestions.length > 0 ? (
                     <ul className="py-2">
@@ -710,19 +732,19 @@ export default function Home() {
                                     ? 'bg-orange-100 text-orange-700' 
                                     : 'bg-green-100 text-green-700'
                                 }`}>
-                                  {suggestion.type === 'lost' ? 'Missing' : 'Recovered'}
+                                  At station
                                 </span>
-                                <span className="text-sm font-medium text-gray-900">
+                                <span className="text-sm font-medium text-blue-900">
                                   {suggestion.documentType?.replace(/_/g, ' ') || 'Document'}
                                 </span>
                               </div>
                               {suggestion.description && (
-                                <p className="text-sm text-gray-600 line-clamp-1">
+                                <p className="text-sm text-blue-900/70 line-clamp-1">
                                   {suggestion.description}
                                 </p>
                               )}
                               {(suggestion.lostLocation || suggestion.foundLocation) && (
-                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                <div className="flex items-center gap-1 text-xs text-blue-900/60 mt-1">
                                   <MapPin className="h-3 w-3" />
                                   <span>{suggestion.lostLocation || suggestion.foundLocation}</span>
                                 </div>
@@ -733,7 +755,7 @@ export default function Home() {
                       ))}
                     </ul>
                   ) : (
-                    <div className="p-4 text-center text-sm text-gray-500">
+                    <div className="p-4 text-center text-sm text-blue-900/60">
                       No suggestions found
                     </div>
                   )}
@@ -807,11 +829,31 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Alert bar — text link, not a button */}
+        <div className="border-t border-white/15 bg-[#081a30]">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 text-center">
+            <p className="text-xs sm:text-sm text-white/90 leading-relaxed">
+              <span className="text-gold-400/95">Document not listed yet?</span>{' '}
+              <button
+                type="button"
+                onClick={() => setWatchModalOpen(true)}
+                className="text-white font-medium underline underline-offset-2 decoration-white/50 hover:decoration-gold-400 hover:text-gold-400 transition-colors bg-transparent border-0 p-0 cursor-pointer inline"
+              >
+                Register your details — we will email you when it is found
+              </button>
+            </p>
+          </div>
+        </div>
+
         <div className="traffic-header-foot" aria-hidden="true" />
       </nav>
 
       {/* Header with Search Section */}
-      <section className="bg-white container mx-auto px-2 sm:px-6 lg:px-8 pt-24 sm:pt-32 pb-6 sm:pb-8 overflow-x-hidden">
+      <section className="bg-white container mx-auto px-2 sm:px-6 lg:px-8 pt-28 sm:pt-40 pb-6 sm:pb-8 overflow-x-hidden">
+
+        {/* Top horizontal banners — max 2, below header */}
+        <AdBannerTopRow ads={bannerAds} loading={adsLoading} className="mb-4 sm:mb-6 max-w-6xl mx-auto" />
 
         {/* Search Section - Item-Focused */}
         <div className="space-y-4 overflow-x-hidden">
@@ -820,11 +862,11 @@ export default function Home() {
             <div className="w-full max-w-6xl" ref={heroSearchRef}>
               {/* Mobile: All-in-one Searchbar */}
               <div className="md:hidden relative">
-                <div className="bg-white border border-gray-300 rounded-[2rem] transition-all duration-200 p-1.5">
+                <div className="bg-white border border-gray-300 rounded-[2rem] transition-all duration-200 p-1.5 text-blue-900">
                   <div className="flex items-center gap-1">
                     {/* Search Input */}
                     <div className="relative flex-1 flex items-center min-w-0">
-                      <Search className="absolute left-2 h-3.5 w-3.5 text-gray-400 z-10" />
+                      <Search className="absolute left-2 h-3.5 w-3.5 text-blue-900/45 z-10" />
               <Input
                 type="text"
                         placeholder="Search..."
@@ -840,7 +882,7 @@ export default function Home() {
                             setShowSuggestions(true)
                           }
                         }}
-                        className="flex-1 h-9 pl-8 pr-1.5 text-xs border-0 focus-visible:ring-0 focus-visible:outline-none bg-transparent"
+                        className="flex-1 h-9 pl-8 pr-1.5 text-xs text-blue-900 placeholder:text-blue-900/45 border-0 focus-visible:ring-0 focus-visible:outline-none bg-transparent"
                       />
                     </div>
                     
@@ -906,11 +948,11 @@ export default function Home() {
               
               {/* Mobile Suggestions Dropdown */}
               {showSuggestions && searchQuery.trim() && (
-                <div className="md:hidden absolute top-full left-0 right-0 mt-3 bg-white rounded-[2rem] z-50 max-h-96 overflow-y-auto border border-gray-100">
+                <div className="md:hidden absolute top-full left-0 right-0 mt-3 bg-white rounded-[2rem] z-50 max-h-96 overflow-y-auto border border-gray-100 text-blue-900">
                     {suggestionsLoading ? (
                       <div className="p-4 text-center">
                         <div className="h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                        <p className="text-sm text-gray-500 mt-2">Searching...</p>
+                        <p className="text-sm text-blue-900/60 mt-2">Searching...</p>
             </div>
                     ) : suggestions.length > 0 ? (
                       <ul className="py-2">
@@ -936,19 +978,19 @@ export default function Home() {
                                       ? 'bg-orange-100 text-orange-700' 
                                       : 'bg-green-100 text-green-700'
                                   }`}>
-                                    {suggestion.type === 'lost' ? 'Missing' : 'Recovered'}
+                                    At station
                                   </span>
-                                  <span className="text-sm font-medium text-gray-900">
+                                  <span className="text-sm font-medium text-blue-900">
                                     {suggestion.documentType?.replace(/_/g, ' ') || 'Document'}
                                   </span>
-          </div>
+                                </div>
                                 {suggestion.description && (
-                                  <p className="text-sm text-gray-600 line-clamp-1">
+                                  <p className="text-sm text-blue-900/70 line-clamp-1">
                                     {suggestion.description}
                                   </p>
                                 )}
                                 {(suggestion.lostLocation || suggestion.foundLocation) && (
-                                  <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                  <div className="flex items-center gap-1 text-xs text-blue-900/60 mt-1">
                                     <MapPin className="h-3 w-3" />
                                     <span>{suggestion.lostLocation || suggestion.foundLocation}</span>
                                   </div>
@@ -959,7 +1001,7 @@ export default function Home() {
                         ))}
                       </ul>
                     ) : (
-                      <div className="p-4 text-center text-sm text-gray-500">
+                      <div className="p-4 text-center text-sm text-blue-900/60">
                         No suggestions found
                       </div>
                     )}
@@ -969,6 +1011,7 @@ export default function Home() {
 
               </div>
           </div>
+
         </div>
       </section>
 
@@ -990,13 +1033,12 @@ export default function Home() {
                   const threshold = 40
 
                   if (Math.abs(distance) >= threshold) {
-                    const order: Array<'all' | 'lost' | 'found' | 'reunited' | 'urgent' | 'nearby'> = [
+                    const order: DocumentViewType[] = [
                       'all',
-                      'lost',
-                      'found',
-                      'reunited',
+                      'available',
+                      'claimed',
+                      'collected',
                       'urgent',
-                      'nearby',
                     ]
                     const currentIndex = order.indexOf(documentViewType)
 
@@ -1022,7 +1064,7 @@ export default function Home() {
                       type="button"
                       variant="ghost"
                       className={filterTabButtonClass(isActive)}
-                      onClick={() => setDocumentViewType(filter.id)}
+                      onClick={() => handleDocumentViewChange(filter.id)}
                     >
                       {Icon ? (
                         <Icon
@@ -1072,18 +1114,23 @@ export default function Home() {
                   </div>
                 ) : showSearchResults ? (
                   (() => {
-                    // Apply category filter to search results
-                    let filteredSearchResults = searchResults
-                    if (selectedCategory !== 'all') {
-                      filteredSearchResults = searchResults.filter(doc => doc.documentType === selectedCategory)
-                    }
-                    
+                    const filteredSearchResults = filterDocumentsForDisplay(searchResults)
+
                     if (filteredSearchResults.length === 0) {
                       return (
-                    <div className="text-center py-12">
+                    <div className="text-center py-12 px-4">
                       <FileQuestion className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500">No documents found</p>
-                          <p className="text-sm text-gray-400 mt-2">Try a different search query or category</p>
+                          <p className="text-sm text-gray-400 mt-2">
+                            Try a different search or{' '}
+                            <button
+                              type="button"
+                              onClick={() => setWatchModalOpen(true)}
+                              className="text-blue-900 font-medium underline underline-offset-2 hover:text-blue-700 bg-transparent border-0 p-0 cursor-pointer inline"
+                            >
+                              register an email alert
+                            </button>
+                          </p>
                     </div>
                       )
                     }
@@ -1121,17 +1168,17 @@ export default function Home() {
                               <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                      doc.type === 'lost' 
-                                        ? 'bg-red-100 text-red-700' 
-                                        : 'bg-green-100 text-green-700'
-                                    }`}>
-                                      {doc.type === 'lost' ? 'LOST' : 'FOUND'}
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                                      FOUND
                                     </span>
-                                    {doc.type === 'lost' && (
-                                      <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded-full flex items-center gap-0.5">
-                                        <Award className="h-2.5 w-2.5" />
-                                        Reward
+                                    {doc.status === 'CLAIM_PENDING' && (
+                                      <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded-full">
+                                        Claim pending
+                                      </span>
+                                    )}
+                                    {doc.status === 'HANDED_OVER' && (
+                                      <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded-full">
+                                        Collected
                                       </span>
                                     )}
                                   </div>
@@ -1145,6 +1192,12 @@ export default function Home() {
                                       )
                                       : <span className="font-semibold">{doc.documentType?.replace(/_/g, ' ') || 'Document'}</span>}
                                   </h3>
+                                  {doc.station?.name && (
+                                    <p className="text-xs text-blue-900/80 mt-0.5 line-clamp-1">
+                                      <Building2 className="h-3 w-3 inline mr-0.5" />
+                                      {doc.station.name}
+                                    </p>
+                                  )}
                                   {/* Mobile: Show location and date below title */}
                                   <div className="sm:hidden flex flex-wrap items-center gap-2 mt-1">
                                     {(doc.lostLocation || doc.foundLocation) && (
@@ -1173,30 +1226,26 @@ export default function Home() {
                                   <div className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
                                     <Calendar className="h-3 w-3 text-gray-400" />
                                     <span className="hidden lg:inline">
-                                      {doc.type === 'lost' ? 'Lost' : 'Found'} on {new Date(doc.reportDate || doc.createdAt).toLocaleDateString()}
+                                      Found on {new Date(doc.reportDate || doc.createdAt).toLocaleDateString()}
                                     </span>
                                   </div>
                     <Button 
-                                    variant={doc.type === 'lost' ? 'default' : 'default'}
                       size="sm" 
-                                    className={`h-7 text-xs font-medium rounded-full whitespace-nowrap ${
-                                      doc.type === 'lost'
-                                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                                        : 'bg-green-600 hover:bg-green-700 text-white'
-                                    }`}
-                                    onClick={(e) => toggleDocumentDropdown(doc, e)}
+                                    className="h-7 text-xs font-medium rounded-full whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openClaimModal({
+                                        id: doc.id,
+                                        documentType: doc.documentType,
+                                        documentNumber: doc.documentNumber,
+                                        foundLocation: doc.foundLocation,
+                                        station: doc.station,
+                                        status: doc.status,
+                                      })
+                                    }}
                                   >
-                                  {doc.type === 'lost' ? (
-                                      <>
-                                        <Eye className="h-3 w-3 sm:mr-1" />
-                                        <span className="hidden sm:inline">View</span>
-                                      </>
-                                    ) : (
-                                      <>
                                         <CheckCircle className="h-3 w-3 sm:mr-1" />
                                         <span className="hidden sm:inline">Claim</span>
-                                      </>
-                                    )}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -1214,26 +1263,22 @@ export default function Home() {
                                   {/* Mobile: Action buttons row */}
                                   <div className="sm:hidden flex items-center gap-2">
                     <Button 
-                                    variant={doc.type === 'lost' ? 'default' : 'default'}
                       size="sm" 
-                                    className={`flex-1 h-8 text-xs font-medium rounded-full ${
-                                    doc.type === 'lost' 
-                                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                                        : 'bg-green-600 hover:bg-green-700 text-white'
-                                    }`}
-                                    onClick={(e) => toggleDocumentDropdown(doc, e)}
+                                    className="flex-1 h-8 text-xs font-medium rounded-full bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openClaimModal({
+                                        id: doc.id,
+                                        documentType: doc.documentType,
+                                        documentNumber: doc.documentNumber,
+                                        foundLocation: doc.foundLocation,
+                                        station: doc.station,
+                                        status: doc.status,
+                                      })
+                                    }}
                                   >
-                                  {doc.type === 'lost' ? (
-                                      <>
-                                        <Eye className="h-3 w-3 mr-1" />
-                                        View
-                                      </>
-                                    ) : (
-                                      <>
                                         <CheckCircle className="h-3 w-3 mr-1" />
                                         Claim
-                                      </>
-                                    )}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -1363,29 +1408,21 @@ export default function Home() {
                     <p className="text-sm text-gray-400 mt-2">Be the first to report a missing or recovered document</p>
                   </div>
                 ) : (() => {
-                  // Filter documents based on view type and category
-                  let filteredDocuments = documentViewType === 'all' 
-                    ? latestDocuments 
-                    : latestDocuments.filter(doc => doc.type === documentViewType)
-                  
-                  // Apply category filter
-                  if (selectedCategory !== 'all') {
-                    filteredDocuments = filteredDocuments.filter(doc => doc.documentType === selectedCategory)
-                  }
-                  
+                  const filteredDocuments = filterDocumentsForDisplay(latestDocuments)
+
                   if (filteredDocuments.length === 0) {
                     return (
                       <div className="text-center py-12">
                         <FileQuestion className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                         <p className="text-gray-500">
-                          {documentViewType === 'all' 
-                            ? 'No documents found yet' 
-                            : `No ${documentViewType === 'lost' ? 'missing' : 'recovered'} documents found`}
+                          {documentViewType === 'all'
+                            ? 'No documents found yet'
+                            : getEmptyFilterMessage(documentViewType)}
                         </p>
                         <p className="text-sm text-gray-400 mt-2">
-                          {documentViewType === 'all' 
+                          {documentViewType === 'all'
                             ? 'Be the first to report a missing or recovered document'
-                            : `Be the first to report a ${documentViewType === 'lost' ? 'missing' : 'recovered'} document`}
+                            : 'Try another filter or category'}
                         </p>
                               </div>
                     )
@@ -1426,20 +1463,21 @@ export default function Home() {
                                 {/* Mobile: Action Buttons at Top Right */}
                                 <div className="sm:hidden absolute top-2 right-2 flex items-center gap-1">
                                   <Button
-                                    variant={doc.type === 'lost' ? 'default' : 'default'}
                                     size="sm"
-                                    className={`h-6 text-[10px] font-medium rounded-full whitespace-nowrap ${
-                                      doc.type === 'lost'
-                                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                                        : 'bg-green-600 hover:bg-green-700 text-white'
-                                    }`}
-                                    onClick={(e) => toggleDocumentDropdown(doc, e)}
+                                    className="h-6 text-[10px] font-medium rounded-full whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openClaimModal({
+                                        id: doc.id,
+                                        documentType: doc.documentType,
+                                        documentNumber: doc.documentNumber,
+                                        foundLocation: doc.foundLocation,
+                                        station: doc.station,
+                                        status: doc.status,
+                                      })
+                                    }}
                                   >
-                                {doc.type === 'lost' ? (
-                                      <Eye className="h-3 w-3" />
-                                    ) : (
                                       <CheckCircle className="h-3 w-3" />
-                                    )}
                                   </Button>
                                   <Button
                                     variant="outline"
@@ -1456,17 +1494,17 @@ export default function Home() {
                                 </div>
                                 
                                 <div className="flex items-center gap-1.5 mb-0.5 flex-wrap pr-14 sm:pr-0">
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                  doc.type === 'lost' 
-                                      ? 'bg-red-100 text-red-700' 
-                                    : 'bg-green-100 text-green-700'
-                                }`}>
-                                    {doc.type === 'lost' ? 'LOST' : 'FOUND'}
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                                    FOUND
                                 </span>
-                                  {doc.type === 'lost' && (
-                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded-full flex items-center gap-0.5">
-                                      <Award className="h-2.5 w-2.5" />
-                                      Reward
+                                  {doc.status === 'CLAIM_PENDING' && (
+                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded-full">
+                                      Claim pending
+                                    </span>
+                                  )}
+                                  {doc.status === 'HANDED_OVER' && (
+                                    <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded-full">
+                                      Collected
                                     </span>
                                   )}
                               </div>
@@ -1480,6 +1518,12 @@ export default function Home() {
                                     )
                                     : <span className="font-semibold">{doc.documentType?.replace(/_/g, ' ') || 'Document'}</span>}
                                 </h3>
+                                {doc.station?.name && (
+                                  <p className="text-xs text-blue-900/80 mt-0.5 line-clamp-1 pr-14 sm:pr-0">
+                                    <Building2 className="h-3 w-3 inline mr-0.5" />
+                                    {doc.station.name}
+                                  </p>
+                                )}
                                 {/* Mobile: Location and Date on same line */}
                                 <div className="sm:hidden flex items-center gap-2 mt-1 flex-wrap">
                                   {(doc.lostLocation || doc.foundLocation) && (
@@ -1515,26 +1559,22 @@ export default function Home() {
                   </div>
                                 </div>
                                 <Button
-                                  variant={doc.type === 'lost' ? 'default' : 'default'}
                                   size="sm"
-                                  className={`h-8 text-xs font-medium rounded-full whitespace-nowrap ${
-                                    doc.type === 'lost'
-                                      ? 'bg-red-600 hover:bg-red-700 text-white'
-                                      : 'bg-green-600 hover:bg-green-700 text-white'
-                                  }`}
-                                  onClick={(e) => toggleDocumentDropdown(doc, e)}
+                                  className="h-8 text-xs font-medium rounded-full whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openClaimModal({
+                                      id: doc.id,
+                                      documentType: doc.documentType,
+                                      documentNumber: doc.documentNumber,
+                                      foundLocation: doc.foundLocation,
+                                      station: doc.station,
+                                      status: doc.status,
+                                    })
+                                  }}
                                 >
-                                  {doc.type === 'lost' ? (
-                                    <>
-                                      <Eye className="h-3 w-3 mr-1" />
-                                      View
-                                    </>
-                                  ) : (
-                                    <>
                                       <CheckCircle className="h-3 w-3 mr-1" />
                                       Claim
-                                    </>
-                                  )}
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -1664,68 +1704,18 @@ export default function Home() {
 
           {/* Right Sidebar - Ads (Desktop Only) */}
           <div className="hidden lg:block lg:col-span-1 order-1 lg:order-2">
-            <div className="lg:sticky lg:top-24 space-y-4">
-              <HomeDateTime />
-              {adsLoading ? (
-                <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
-                  <div className="h-6 w-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                </div>
-              ) : ads.length === 0 ? (
-                <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
-                  <p className="text-sm text-gray-500">Ad Space</p>
-                </div>
-              ) : (
-                ads.map((ad) => (
-                  <a
-                    key={ad.id}
-                    href={ad.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full"
-                  >
-                    <div className="bg-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity rounded-xl shadow-sm border border-gray-100">
-                      <img
-                        src={ad.image}
-                        alt={ad.title || 'Advertisement'}
-                        className="w-full h-auto object-cover"
-                      />
-                    </div>
-                  </a>
-                ))
-              )}
+            <div className="lg:sticky lg:top-24">
+              <AdSidebarStack ads={sidebarAds} loading={adsLoading} />
             </div>
           </div>
         </div>
 
-        {/* Ads Section - Below Documents (Mobile Only) */}
-        <div className="lg:hidden mt-8 space-y-4">
-          <HomeDateTime />
-          {adsLoading ? (
-            <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
-              <div className="h-6 w-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            </div>
-          ) : ads.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {ads.map((ad) => (
-                <a
-                  key={ad.id}
-                  href={ad.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full"
-                >
-                  <div className="bg-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity rounded-xl shadow-sm border border-gray-100">
-                    <img
-                      src={ad.image}
-                      alt={ad.title || 'Advertisement'}
-                      className="w-full h-auto object-cover"
-                    />
-                  </div>
-                </a>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        {/* Sidebar-placement ads on mobile (below feed) */}
+        {sidebarAds.length > 0 ? (
+          <div className="lg:hidden mt-8 max-w-2xl mx-auto">
+            <AdSidebarStack ads={sidebarAds} loading={adsLoading} />
+          </div>
+        ) : null}
       </section>
 
       {/* Login Modal */}
@@ -1763,9 +1753,7 @@ export default function Home() {
             </Button>
           </form>
           <p className="text-center text-xs text-gray-500">
-            <Link href="/register" className="text-blue-700 hover:underline">
-              Register
-            </Link>
+            Staff accounts are created by your administrator.
           </p>
         </DialogContent>
       </Dialog>
@@ -1814,6 +1802,23 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      <ClaimDocumentModal
+        open={claimModalOpen}
+        onOpenChange={setClaimModalOpen}
+        document={claimDocument}
+        onSuccess={() => {
+          fetchLatestDocuments()
+          fetch('/api/documents/latest?limit=1000')
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.documents) setAllDocumentsForCounts(data.documents)
+            })
+            .catch(() => {})
+        }}
+      />
+
+      <DocumentWatchModal open={watchModalOpen} onOpenChange={setWatchModalOpen} />
 
     </div>
   )

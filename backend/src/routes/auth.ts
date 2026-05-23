@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { createUser, getUserByEmail, verifyPassword } from '../lib/auth'
+import { getUserByEmail, verifyPassword } from '../lib/auth'
 import { z } from 'zod'
 import { SignJWT } from 'jose'
 import { writeAuditLog } from '../lib/audit'
@@ -14,61 +14,12 @@ const loginSchema = z.object({
   password: z.string(),
 })
 
-const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  name: z.string().min(2),
-  phone: z.string().optional(),
-  role: z.literal('INSTITUTION').default('INSTITUTION'),
-})
-
-// POST /api/auth/register
-router.post('/register', async (req: Request, res: Response) => {
-  try {
-    const data = registerSchema.parse(req.body)
-
-    // Check if user already exists
-    const existingUser = await getUserByEmail(data.email)
-    if (existingUser) {
-      return res.status(400).json({ error: 'User with this email already exists' })
-    }
-
-    const user = await createUser(data.email, data.password, data.name, data.phone, data.role)
-
-    await writeAuditLog({
-      actorUserId: user._id ? new ObjectId(user._id) : null,
-      actorRole: user.role,
-      action: 'AUTH_REGISTER',
-      entityType: 'USER',
-      entityId: user._id ? new ObjectId(user._id) : null,
-      message: 'Institution account registered',
-      metadata: { email: user.email, role: user.role },
-    })
-
-    return res.status(201).json({
-      message: 'Institution account created successfully',
-      user: {
-        id: user._id!.toString(),
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors })
-    }
-
-    // Handle MongoDB duplicate key error
-    if (error && typeof error === 'object' && 'code' in error) {
-      if (error.code === 11000) {
-        return res.status(400).json({ error: 'User with this email already exists' })
-      }
-    }
-
-    console.error('Registration error:', error)
-    return res.status(500).json({ error: 'Failed to create user. Please try again.' })
-  }
+// POST /api/auth/register — disabled; staff accounts are created by admins
+router.post('/register', async (_req: Request, res: Response) => {
+  return res.status(403).json({
+    error:
+      'Self-registration is not available. Ask your administrator to create a staff account.',
+  })
 })
 
 // POST /api/auth/login

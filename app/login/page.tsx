@@ -101,9 +101,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <p className="mt-3 text-center text-xs text-gray-500">
-            <Link href="/register" className="text-blue-700 hover:underline">
-              Register
-            </Link>
+            Staff accounts are created by your administrator. Contact them if you need access.
           </p>
         </CardContent>
       </Card>

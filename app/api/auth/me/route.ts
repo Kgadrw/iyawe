@@ -13,6 +13,7 @@ const updateProfileSchema = z
     name: z.string().min(2).max(120),
     email: z.string().email(),
     phone: z.string().max(30).optional().nullable(),
+    stationName: z.string().max(120).optional().nullable(),
     currentPassword: z.string().optional(),
     newPassword: z.string().min(6).optional(),
   })
@@ -29,6 +30,7 @@ function publicUser(user: {
   email: string
   name: string
   phone?: string | null
+  stationName?: string | null
   role: string
   createdAt?: Date
 }) {
@@ -37,6 +39,7 @@ function publicUser(user: {
     email: user.email,
     name: user.name,
     phone: user.phone ?? '',
+    stationName: user.stationName?.trim() || '',
     role: user.role,
     createdAt: user.createdAt,
   }
@@ -53,8 +56,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ user: null })
   }
 
+  const { getStaffStationContext } = await import('@/lib/station-scope')
+  const stationCtx = await getStaffStationContext(session.userId)
+
   return NextResponse.json({
-    user: publicUser(user as any),
+    user: {
+      ...publicUser(user as any),
+      stationName: stationCtx.stationName || '',
+    },
   })
 }
 
@@ -92,6 +101,11 @@ export async function PATCH(request: NextRequest) {
       updatedAt: new Date(),
     }
 
+    if (data.stationName !== undefined && ['OFFICER', 'INSTITUTION'].includes(existing.role)) {
+      const trimmed = data.stationName?.trim() || null
+      update.stationName = trimmed
+    }
+
     if (data.newPassword) {
       const valid = await verifyPassword(data.currentPassword!, existing.passwordHash)
       if (!valid) {
@@ -108,6 +122,9 @@ export async function PATCH(request: NextRequest) {
       if (data.name) institutionUpdate.name = data.name.trim()
       if (data.email) institutionUpdate.email = data.email.trim().toLowerCase()
       if (data.phone !== undefined) institutionUpdate.phone = data.phone?.trim() || ''
+      if (data.stationName !== undefined && data.stationName?.trim()) {
+        institutionUpdate.name = data.stationName.trim()
+      }
       if (Object.keys(institutionUpdate).length > 0) {
         await institutionsCollection.updateOne(
           { userId: existing._id },

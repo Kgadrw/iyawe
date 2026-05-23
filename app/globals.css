@@ -119,4 +119,20 @@
   .traffic-header-muted {
     @apply text-gold-400;
   }
+
+  .platform-panel {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden;
+  }
+
+  .platform-stat-card {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 transition-shadow hover:shadow-md;
+  }
+
+  .platform-section-title {
+    @apply text-lg sm:text-2xl font-semibold text-blue-900 tracking-tight;
+  }
+
+  .platform-section-desc {
+    @apply mt-1 text-sm text-blue-900/60;
+  }
 }
