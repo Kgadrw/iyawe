@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 import { getCurrentUserFromCookie } from '@/lib/server-auth'
 import { getStaffStationContext } from '@/lib/station-scope'
+import { OfficerPlatformNav } from '@/components/platform/OfficerPlatformNav'
 
 export default async function OfficerLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUserFromCookie()
@@ -17,43 +19,46 @@ export default async function OfficerLayout({ children }: { children: React.Reac
     <div className="min-h-screen bg-blue-50/40">
       <header className="traffic-header">
         <div className="traffic-header-stripes" aria-hidden="true" />
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 traffic-header-body">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/officer" className="text-lg font-bold text-white hover:text-gold-400 transition-colors">
-              Subizwa | {roleLabel}
-            </Link>
-            <nav className="hidden gap-4 text-sm font-medium traffic-header-muted md:flex">
-              <Link className="hover:text-white" href="/dashboard/officer">
-                Reports
-              </Link>
-              <Link className="hover:text-white" href="/dashboard/officer/account">
-                View profile
-              </Link>
-              {user.role === 'ADMIN' ? (
-                <Link className="hover:text-white" href="/dashboard/admin">
-                  Admin Monitoring
-                </Link>
-              ) : null}
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-3 text-sm traffic-header-muted">
-            {stationCtx.stationName ? (
-              <span className="hidden md:inline max-w-[200px] truncate" title={stationCtx.stationName}>
-                {stationCtx.stationName}
-              </span>
-            ) : null}
-            <Link href="/dashboard/officer/account" className="hidden sm:inline hover:text-white">
-              {user.email}
-            </Link>
-            <form action="/api/auth/logout" method="post">
-              <button
-                className="rounded-md border-2 border-gold-400 bg-gold-400 px-3 py-1.5 font-medium text-blue-900 hover:bg-gold-300"
-                type="submit"
+        <div className="mx-auto max-w-6xl px-4 py-3 sm:py-4 traffic-header-body">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <Link
+                href="/dashboard/officer"
+                className="text-lg sm:text-xl font-bold text-white hover:text-gold-400 transition-colors shrink-0"
               >
-                Logout
-              </button>
-            </form>
+                Subizwa | {roleLabel}
+              </Link>
+
+              <div className="flex items-center gap-2 sm:gap-3 text-sm traffic-header-muted shrink-0">
+                {stationCtx.stationName ? (
+                  <span
+                    className="hidden lg:inline max-w-[140px] truncate text-xs text-gold-400/90"
+                    title={stationCtx.stationName}
+                  >
+                    {stationCtx.stationName}
+                  </span>
+                ) : null}
+                <Link
+                  href="/dashboard/officer/account"
+                  className="hidden md:inline text-xs hover:text-white truncate max-w-[120px]"
+                  title={user.email}
+                >
+                  {user.email}
+                </Link>
+                <form action="/api/auth/logout" method="post">
+                  <button
+                    className="rounded-full border-2 border-gold-400 bg-gold-400 px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-900 hover:bg-gold-300"
+                    type="submit"
+                  >
+                    Logout
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <Suspense fallback={null}>
+              <OfficerPlatformNav role={user.role} />
+            </Suspense>
           </div>
         </div>
         <div className="traffic-header-foot" aria-hidden="true" />

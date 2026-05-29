@@ -141,7 +141,7 @@ export function ReportLostModal({ open, onOpenChange, variant = 'public' }: Repo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{useStaffForm ? 'Report lost document' : 'Report missing document'}</DialogTitle>
           <DialogDescription className="sr-only">

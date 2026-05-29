@@ -111,7 +111,7 @@ export function ReportFoundModal({ open, onOpenChange }: ReportFoundModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Upload found document</DialogTitle>
           <DialogDescription className="sr-only">
