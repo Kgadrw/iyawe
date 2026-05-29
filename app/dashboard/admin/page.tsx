@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { collections } from '@/lib/mongodb'
 import { getCurrentUserFromCookie } from '@/lib/server-auth'
 import { writeAuditLog } from '@/lib/audit'
@@ -25,12 +26,48 @@ async function getSummary() {
 }
 
 const STAT_CARDS = [
-  { key: 'users', label: 'Users', icon: Users, color: 'text-blue-600 bg-blue-50' },
-  { key: 'found', label: 'Found documents', icon: FileCheck, color: 'text-green-600 bg-green-50' },
-  { key: 'lost', label: 'Lost reports (legacy)', icon: FileQuestion, color: 'text-orange-600 bg-orange-50' },
-  { key: 'matches', label: 'Matches', icon: Link2, color: 'text-purple-600 bg-purple-50' },
-  { key: 'notifications', label: 'Notifications', icon: Bell, color: 'text-amber-600 bg-amber-50' },
-  { key: 'auditLogs', label: 'Audit logs', icon: ClipboardList, color: 'text-slate-600 bg-slate-50' },
+  {
+    key: 'users',
+    label: 'Staff accounts',
+    icon: Users,
+    color: 'text-blue-600 bg-blue-50',
+    href: '/dashboard/admin/staff',
+  },
+  {
+    key: 'found',
+    label: 'Found documents',
+    icon: FileCheck,
+    color: 'text-green-600 bg-green-50',
+    href: '/dashboard/officer',
+  },
+  {
+    key: 'lost',
+    label: 'Lost reports (legacy)',
+    icon: FileQuestion,
+    color: 'text-orange-600 bg-orange-50',
+    href: '/dashboard/officer',
+  },
+  {
+    key: 'matches',
+    label: 'Matches',
+    icon: Link2,
+    color: 'text-purple-600 bg-purple-50',
+    href: '/dashboard/admin',
+  },
+  {
+    key: 'notifications',
+    label: 'Notifications',
+    icon: Bell,
+    color: 'text-amber-600 bg-amber-50',
+    href: '/dashboard/admin',
+  },
+  {
+    key: 'auditLogs',
+    label: 'Audit logs',
+    icon: ClipboardList,
+    color: 'text-slate-600 bg-slate-50',
+    href: '/dashboard/admin',
+  },
 ] as const
 
 export default async function AdminDashboardPage() {
@@ -64,20 +101,27 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3">
-        {STAT_CARDS.map(({ key, label, icon: Icon, color }) => (
-          <div key={key} className="platform-stat-card">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-blue-900/60 font-medium">{label}</p>
-                <p className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-bold text-blue-900 tabular-nums">
-                  {summary[key]}
-                </p>
-              </div>
-              <div className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl ${color}`}>
-                <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+        {STAT_CARDS.map(({ key, label, icon: Icon, color, href }) => (
+          <Link key={key} href={href} className="block group">
+            <div className="platform-stat-card group-hover:border-blue-200 transition-shadow">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-blue-900/60 font-medium">{label}</p>
+                  <p className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-bold text-blue-900 tabular-nums">
+                    {summary[key]}
+                  </p>
+                  <p className="mt-1 text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    View →
+                  </p>
+                </div>
+                <div
+                  className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl ${color}`}
+                >
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
               </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 

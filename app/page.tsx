@@ -1720,7 +1720,7 @@ export default function Home() {
 
       {/* Login Modal */}
       <Dialog open={loginModalOpen} onOpenChange={setLoginModalOpen}>
-        <DialogContent className="sm:max-w-sm gap-4 p-6">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader className="space-y-0">
             <DialogTitle>Login</DialogTitle>
             <DialogDescription className="sr-only">Staff sign in</DialogDescription>
@@ -1760,7 +1760,7 @@ export default function Home() {
 
       {/* Image Viewer Modal */}
       <Dialog open={!!viewingImage} onOpenChange={() => setViewingImage(null)}>
-        <DialogContent className="sm:max-w-4xl p-0 bg-black/95">
+        <DialogContent className="sm:max-w-4xl w-[calc(100%-1rem)] max-h-[min(90dvh,calc(100dvh-1rem))] p-0 bg-black/95 overflow-y-auto">
           <DialogHeader className="sr-only">
             <DialogTitle>View Document Image</DialogTitle>
           </DialogHeader>
