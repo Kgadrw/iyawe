@@ -14,19 +14,31 @@ export async function apiRequest(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const url = `${API_BASE_URL}${endpoint}`
+  // Auth endpoints should always go through Next.js (same origin) to set cookies properly
+  const isAuthEndpoint = endpoint.startsWith('/api/auth/')
+  const url = isAuthEndpoint ? endpoint : `${API_BASE_URL}${endpoint}`
   
   // Don't set Content-Type for FormData - browser will set it with boundary
   const isFormData = options.body instanceof FormData
   
+  const defaultHeaders: Record<string, string> = isFormData
+    ? { ...options.headers }
+    : {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      }
+
+  // Add Authorization header for backend requests (cross-domain)
+  if (!isAuthEndpoint && typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      defaultHeaders['Authorization'] = `Bearer ${token}`
+    }
+  }
+
   const defaultOptions: RequestInit = {
     credentials: 'include', // Include cookies for authentication
-    headers: isFormData
-      ? { ...options.headers }
-      : {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
+    headers: defaultHeaders,
   }
 
   try {

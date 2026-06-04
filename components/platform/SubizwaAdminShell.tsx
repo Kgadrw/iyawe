@@ -1,5 +1,8 @@
+'use client'
+
 import Link from 'next/link'
 import { AdminPlatformNav } from './AdminPlatformNav'
+import { handleLogout } from '@/lib/logout-handler'
 
 type SubizwaAdminShellProps = {
   userEmail: string

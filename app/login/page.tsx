@@ -31,9 +31,9 @@ export default function LoginPage() {
         body: JSON.stringify(formData),
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
+        setLoading(false)
+        const data = await response.json()
         toast({
           title: 'Error',
           description: data.error || 'Failed to login',
@@ -42,21 +42,30 @@ export default function LoginPage() {
         return
       }
 
+      const data = await response.json()
+
       toast({
         title: 'Success',
         description: 'Logged in successfully',
       })
 
-      router.push(dashboardPathForStaffRole(data.user?.role ?? ''))
-      router.refresh()
+      // Store the token for backend requests
+      if (data.token) {
+        localStorage.setItem('auth_token', data.token)
+      }
+
+      setLoading(false)
+
+      // Redirect to dashboard
+      const dashboardPath = dashboardPathForStaffRole(data.user?.role ?? '')
+      router.push(dashboardPath)
     } catch (error) {
+      setLoading(false)
       toast({
         title: 'Error',
         description: 'An unexpected error occurred',
         variant: 'destructive',
       })
-    } finally {
-      setLoading(false)
     }
   }
 

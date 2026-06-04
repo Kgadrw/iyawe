@@ -70,16 +70,36 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
 // Start server
 async function startServer() {
   try {
-    // Connect to database
-    await connectDatabase()
+    // Try to connect to database with retry logic
+    let dbConnected = false
+    let retries = 3
     
-    // Initialize database indexes
-    await initializeDatabaseIndexes()
+    while (retries > 0 && !dbConnected) {
+      try {
+        await connectDatabase()
+        await initializeDatabaseIndexes()
+        dbConnected = true
+      } catch (dbError) {
+        retries--
+        if (retries > 0) {
+          console.log(`⏳ Retrying MongoDB connection... (${retries} attempts left)`)
+          await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds before retry
+        } else {
+          console.warn('⚠️  Could not connect to MongoDB. Server will start but database operations may fail.')
+          console.warn('📖 See: backend/MONGODB_SETUP.md for MongoDB setup instructions')
+        }
+      }
+    }
     
-    // Start server
+    // Start server regardless of DB connection status
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`)
       console.log(`📝 Health check: http://localhost:${PORT}/health`)
+      if (dbConnected) {
+        console.log(`✅ MongoDB is connected`)
+      } else {
+        console.log(`⚠️  MongoDB is NOT connected - API routes may fail`)
+      }
     })
   } catch (error) {
     console.error('Failed to start server:', error)
