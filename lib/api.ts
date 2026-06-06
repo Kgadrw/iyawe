@@ -1,10 +1,8 @@
 /**
  * API Configuration
- * Centralized configuration for backend API calls
+ * All /api/* requests are proxied to the Express backend (see next.config.js rewrites).
+ * Leave API_BASE_URL empty for same-origin proxying so auth cookies work correctly.
  */
-
-// Same-origin by default so auth cookies (Set-Cookie from /api/auth/*) match the Next.js host.
-// If you point this at a separate API host, you must proxy auth through Next or use a shared cookie domain.
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 /**
@@ -85,7 +83,14 @@ export const API_ENDPOINTS = {
   
   // Documents
   latestDocuments: (limit?: number) => `/api/documents/latest${limit ? `?limit=${limit}` : ''}`,
-  
+  document: (id: string, type: string) =>
+    `/api/documents/${id}?type=${encodeURIComponent(type)}`,
+
+  // Ads
+  ads: '/api/ads',
+
+  foundReportStatus: (id: string) => `/api/reports/found/${id}/status`,
+
   // Institutions
   institutions: '/api/institutions',
 

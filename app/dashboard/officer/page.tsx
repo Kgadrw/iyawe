@@ -133,9 +133,8 @@ function OfficerDashboardContent() {
 
   const markFoundHandover = async (reportId: string) => {
     try {
-      const res = await fetch(`/api/reports/found/${reportId}/status`, {
+      const res = await apiRequest(API_ENDPOINTS.foundReportStatus(reportId), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'HANDED_OVER' }),
       })
       const data = await res.json()

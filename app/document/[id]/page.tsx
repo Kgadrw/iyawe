@@ -39,8 +39,7 @@ export default function DocumentDetailPage() {
   const fetchDocument = async (type: 'lost' | 'found'): Promise<boolean> => {
     try {
       setLoading(true)
-      // Use the frontend API endpoint (Next.js API route)
-      const response = await fetch(`/api/documents/${documentId}?type=${type}`)
+      const response = await apiRequest(API_ENDPOINTS.document(documentId, type))
       
       if (response.ok) {
         const data = await response.json()

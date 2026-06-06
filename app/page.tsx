@@ -114,7 +114,7 @@ export default function Home() {
 
   const fetchUrgentDocuments = async () => {
     try {
-      const response = await fetch('/api/documents/latest?limit=100')
+      const response = await apiRequest(`${API_ENDPOINTS.latestDocuments(100)}`)
       if (response.ok) {
         const data = await response.json()
         const urgent = (data.documents || []).filter((doc: any) => doc.isUrgent === true).slice(0, 5)
@@ -149,8 +149,7 @@ export default function Home() {
         params.append('category', selectedCategory)
       }
       
-      // Call Next.js API route directly
-      const response = await fetch(`/api/documents/latest?${params.toString()}`)
+      const response = await apiRequest(`/api/documents/latest?${params.toString()}`)
         const data = await response.json()
       
       // Check if there's an error in the response (even if status is 200)
@@ -221,7 +220,7 @@ export default function Home() {
     // Fetch document details
     try {
       setDropdownLoading(prev => ({ ...prev, [docKey]: true }))
-      const response = await fetch(`/api/documents/${doc.id}?type=${doc.type}`)
+      const response = await apiRequest(API_ENDPOINTS.document(doc.id, doc.type))
       
       if (response.ok) {
         const data = await response.json()
@@ -276,7 +275,7 @@ export default function Home() {
     const loadAds = async () => {
       try {
         setAdsLoading(true)
-        const response = await fetch('/api/ads')
+        const response = await apiRequest(API_ENDPOINTS.ads)
         if (response.ok) {
           const data = await response.json()
           setBannerAds(data.bannerTop || data.byPlacement?.BANNER_TOP || [])
@@ -493,7 +492,7 @@ export default function Home() {
   useEffect(() => {
     const fetchAllForCounts = async () => {
       try {
-        const response = await fetch('/api/documents/latest?limit=1000')
+        const response = await apiRequest(API_ENDPOINTS.latestDocuments(1000))
         if (response.ok) {
           const data = await response.json()
           setAllDocumentsForCounts(data.documents || [])
@@ -1809,7 +1808,7 @@ export default function Home() {
         document={claimDocument}
         onSuccess={() => {
           fetchLatestDocuments()
-          fetch('/api/documents/latest?limit=1000')
+          apiRequest(API_ENDPOINTS.latestDocuments(1000))
             .then((r) => r.json())
             .then((data) => {
               if (data.documents) setAllDocumentsForCounts(data.documents)
