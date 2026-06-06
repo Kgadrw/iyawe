@@ -38,3 +38,6 @@ next-env.d.ts
 # prisma
 /prisma/migrations
 
+# Separate repos — deploy frontend only from this project
+/backend/
+/admin-dashboard/
