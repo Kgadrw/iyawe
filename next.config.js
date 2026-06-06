@@ -3,7 +3,6 @@ const backendUrl = process.env.BACKEND_URL || 'https://iyawe-backend.onrender.co
 
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   compiler: {
     // Enable SWC for better JSX parsing
   },

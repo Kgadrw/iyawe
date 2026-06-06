@@ -18,35 +18,29 @@ export async function apiRequest(
   
   // Don't set Content-Type for FormData - browser will set it with boundary
   const isFormData = options.body instanceof FormData
-  
-  const defaultHeaders: Record<string, string> = isFormData
-    ? { ...options.headers }
-    : {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      }
 
-  // Add Authorization header for backend requests (cross-domain)
+  const headers = new Headers(options.headers as HeadersInit | undefined)
+  if (!isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
   if (!isAuthEndpoint && typeof window !== 'undefined') {
     const token = localStorage.getItem('auth_token')
     if (token) {
-      defaultHeaders['Authorization'] = `Bearer ${token}`
+      headers.set('Authorization', `Bearer ${token}`)
     }
   }
 
   const defaultOptions: RequestInit = {
-    credentials: 'include', // Include cookies for authentication
-    headers: defaultHeaders,
+    credentials: 'include',
+    headers,
   }
 
   try {
     const response = await fetch(url, {
       ...defaultOptions,
       ...options,
-      headers: {
-        ...defaultOptions.headers,
-        ...options.headers,
-      },
+      headers,
     })
     return response
   } catch (error: any) {
