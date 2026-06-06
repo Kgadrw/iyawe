@@ -12,6 +12,9 @@ import searchRoutes from './routes/search'
 import documentsRoutes from './routes/documents'
 import adminRoutes from './routes/admin'
 import institutionsRoutes from './routes/institutions'
+import adsRoutes from './routes/ads'
+import claimsRoutes from './routes/claims'
+import documentWatchRoutes from './routes/document-watch'
 
 // Load environment variables
 dotenv.config()
@@ -55,6 +58,9 @@ app.use('/api/search', searchRoutes)
 app.use('/api/documents', documentsRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/institutions', institutionsRoutes)
+app.use('/api/ads', adsRoutes)
+app.use('/api/claims', claimsRoutes)
+app.use('/api/document-watch', documentWatchRoutes)
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -67,13 +73,12 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-// Start server
+// Start server (local / Render). On Vercel, the Express app is exported as a serverless handler.
 async function startServer() {
   try {
-    // Try to connect to database with retry logic
     let dbConnected = false
     let retries = 3
-    
+
     while (retries > 0 && !dbConnected) {
       try {
         await connectDatabase()
@@ -83,15 +88,14 @@ async function startServer() {
         retries--
         if (retries > 0) {
           console.log(`⏳ Retrying MongoDB connection... (${retries} attempts left)`)
-          await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds before retry
+          await new Promise((resolve) => setTimeout(resolve, 2000))
         } else {
           console.warn('⚠️  Could not connect to MongoDB. Server will start but database operations may fail.')
           console.warn('📖 See: backend/MONGODB_SETUP.md for MongoDB setup instructions')
         }
       }
     }
-    
-    // Start server regardless of DB connection status
+
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`)
       console.log(`📝 Health check: http://localhost:${PORT}/health`)
@@ -107,17 +111,29 @@ async function startServer() {
   }
 }
 
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down gracefully...')
-  await closeDatabase()
-  process.exit(0)
-})
+void (async () => {
+  try {
+    await connectDatabase()
+    await initializeDatabaseIndexes()
+  } catch (error) {
+    console.warn('⚠️  MongoDB not connected at startup:', error)
+  }
+})()
 
-process.on('SIGTERM', async () => {
-  console.log('\n🛑 Shutting down gracefully...')
-  await closeDatabase()
-  process.exit(0)
-})
+if (!process.env.VERCEL) {
+  process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down gracefully...')
+    await closeDatabase()
+    process.exit(0)
+  })
 
-startServer()
+  process.on('SIGTERM', async () => {
+    console.log('\n🛑 Shutting down gracefully...')
+    await closeDatabase()
+    process.exit(0)
+  })
+
+  void startServer()
+}
+
+export default app
