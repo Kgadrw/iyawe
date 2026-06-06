@@ -14,14 +14,17 @@ export async function POST(req: NextRequest) {
 
     const data = await backendRes.json()
 
-    // Forward the token cookie from the backend response
-    const setCookieHeader = backendRes.headers.get('set-cookie')
-
     const res = NextResponse.json(data, { status: backendRes.status })
 
-    if (setCookieHeader) {
-      // Parse and set the cookie explicitly
-      res.headers.set('set-cookie', setCookieHeader)
+    // If login was successful and we got a token, set the cookie explicitly
+    if (backendRes.ok && data.token) {
+      res.cookies.set('token', data.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+        path: '/',
+      })
     }
 
     return res
