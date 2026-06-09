@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000'
+const BACKEND_URL = process.env.BACKEND_URL || 'https://iyawe-backend.onrender.com'
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,18 +13,27 @@ export async function POST(req: NextRequest) {
     })
 
     const data = await backendRes.json()
-
     const res = NextResponse.json(data, { status: backendRes.status })
 
-    // If login was successful and we got a token, set the cookie explicitly
-    if (backendRes.ok && data.token) {
-      res.cookies.set('token', data.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
-        path: '/',
-      })
+    if (backendRes.ok) {
+      const token =
+        typeof data.token === 'string'
+          ? data.token
+          : (() => {
+              const setCookie = backendRes.headers.get('set-cookie') || ''
+              const match = /token=([^;]+)/.exec(setCookie)
+              return match?.[1]
+            })()
+
+      if (token) {
+        res.cookies.set('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 7,
+          path: '/',
+        })
+      }
     }
 
     return res
