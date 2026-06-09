@@ -485,8 +485,8 @@ export default function Home() {
 
       setLoginModalOpen(false)
       setLoginFormData({ email: '', password: '' })
-      router.push(dashboardPathForStaffRole(data.user?.role ?? ''))
-      router.refresh()
+      // Full navigation so the dashboard server layout sees the new auth cookie.
+      window.location.href = dashboardPathForStaffRole(data.user?.role ?? '')
     } catch (error) {
       toast({
         title: 'Error',

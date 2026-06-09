@@ -18,7 +18,9 @@ export async function apiRequest(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const url = `${API_BASE_URL}${endpoint}`
+  // Auth must stay on the Next.js origin so login can set the httpOnly cookie for this site.
+  const isAuthEndpoint = endpoint.startsWith('/api/auth/')
+  const url = isAuthEndpoint ? endpoint : `${API_BASE_URL}${endpoint}`
 
   const isFormData = options.body instanceof FormData
 
