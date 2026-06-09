@@ -1,28 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentUserFromCookie } from '@/lib/server-auth'
+import { attachAuthCookie, signAuthToken } from '@/lib/auth-token'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'https://iyawe-backend.onrender.com'
 
-export async function GET(req: NextRequest) {
-  try {
-    const token = req.cookies.get('token')?.value
-
-    const backendRes = await fetch(`${BACKEND_URL}/api/auth/me`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Cookie: `token=${token}` } : {}),
-      },
-    })
-
-    const data = await backendRes.json()
-    return NextResponse.json(data, { status: backendRes.status })
-  } catch (error) {
-    console.error('Auth /me proxy error:', error)
-    return NextResponse.json({ user: null }, { status: 200 })
+export async function GET() {
+  const user = await getCurrentUserFromCookie()
+  if (!user) {
+    return NextResponse.json({ user: null })
   }
+
+  return NextResponse.json({
+    user: {
+      id: user.userId,
+      email: user.email,
+      role: user.role,
+      stationName: '',
+    },
+  })
 }
 
 export async function PATCH(req: NextRequest) {
   try {
+    const session = await getCurrentUserFromCookie()
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const token = req.cookies.get('token')?.value
     const body = await req.json()
 
@@ -36,12 +40,15 @@ export async function PATCH(req: NextRequest) {
     })
 
     const data = await backendRes.json()
-
-    // Forward any updated cookie
-    const setCookieHeader = backendRes.headers.get('set-cookie')
     const res = NextResponse.json(data, { status: backendRes.status })
-    if (setCookieHeader) {
-      res.headers.set('set-cookie', setCookieHeader)
+
+    if (backendRes.ok && data.user) {
+      const newToken = await signAuthToken({
+        userId: String(data.user.id),
+        email: String(data.user.email),
+        role: String(data.user.role),
+      })
+      attachAuthCookie(res, newToken)
     }
 
     return res

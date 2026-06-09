@@ -1,9 +1,6 @@
 import { SignJWT } from 'jose'
 import { NextResponse } from 'next/server'
-
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-)
+import { getJwtSecretKey } from '@/lib/jwt-secret'
 
 export async function signAuthToken(payload: {
   userId: string
@@ -14,7 +11,7 @@ export async function signAuthToken(payload: {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(secret)
+    .sign(getJwtSecretKey())
 }
 
 export function attachAuthCookie(response: NextResponse, token: string) {

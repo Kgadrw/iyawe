@@ -8,17 +8,25 @@ function getBackendApiBase() {
 
 const nextConfig = {
   reactStrictMode: true,
-  compiler: {
-    // Enable SWC for better JSX parsing
-  },
+  compiler: {},
   async rewrites() {
     const apiBase = getBackendApiBase()
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${apiBase}/:path*`,
-      },
+    // Do not rewrite /api/auth/* — handled by app/api/auth routes (session cookies).
+    const prefixes = [
+      'reports',
+      'matches',
+      'verify',
+      'search',
+      'documents',
+      'admin',
+      'institutions',
+      'claims',
+      'document-watch',
     ]
+    return prefixes.map((prefix) => ({
+      source: `/api/${prefix}/:path*`,
+      destination: `${apiBase}/${prefix}/:path*`,
+    }))
   },
   allowedDevOrigins: ['192.168.56.1', 'localhost', '127.0.0.1'],
 }

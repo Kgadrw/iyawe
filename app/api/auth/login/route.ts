@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { attachAuthCookie, signAuthToken } from '@/lib/auth-token'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'https://iyawe-backend.onrender.com'
 
@@ -13,29 +14,30 @@ export async function POST(req: NextRequest) {
     })
 
     const data = await backendRes.json()
-    const res = NextResponse.json(data, { status: backendRes.status })
 
-    if (backendRes.ok) {
-      const token =
-        typeof data.token === 'string'
-          ? data.token
-          : (() => {
-              const setCookie = backendRes.headers.get('set-cookie') || ''
-              const match = /token=([^;]+)/.exec(setCookie)
-              return match?.[1]
-            })()
-
-      if (token) {
-        res.cookies.set('token', token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 7,
-          path: '/',
-        })
-      }
+    if (!backendRes.ok) {
+      return NextResponse.json(data, { status: backendRes.status })
     }
 
+    if (!data.user?.id || !data.user?.email || !data.user?.role) {
+      return NextResponse.json(
+        { error: 'Invalid login response from server' },
+        { status: 502 }
+      )
+    }
+
+    // Sign the session cookie on this app so dashboard auth matches JWT_SECRET here.
+    const token = await signAuthToken({
+      userId: String(data.user.id),
+      email: String(data.user.email),
+      role: String(data.user.role),
+    })
+
+    const res = NextResponse.json({
+      message: data.message || 'Login successful',
+      user: data.user,
+    })
+    attachAuthCookie(res, token)
     return res
   } catch (error) {
     console.error('Login proxy error:', error)

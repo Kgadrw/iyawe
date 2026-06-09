@@ -1,27 +1,33 @@
 /**
  * API Configuration
- * All /api/* requests are proxied to the Express backend (see next.config.js rewrites).
- * Leave API_BASE_URL empty for same-origin proxying so auth cookies work correctly.
+ * Auth and authenticated routes stay same-origin (cookies + Next.js proxies).
+ * Only large public payloads (ads) may call the backend directly.
  */
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
-/** Public endpoints with large payloads (e.g. ads images) — fetch backend directly when configured. */
+/** Public endpoints that may call the backend directly (large responses). */
+const PUBLIC_DIRECT_PREFIXES = ['/api/ads']
+
 export function publicApiUrl(endpoint: string): string {
   const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? ''
   return base ? `${base}${endpoint}` : endpoint
 }
 
-/**
- * Make an API request with proper configuration
- */
+export function apiUrl(endpoint: string): string {
+  if (endpoint.startsWith('/api/auth/')) {
+    return endpoint
+  }
+  if (PUBLIC_DIRECT_PREFIXES.some((p) => endpoint === p || endpoint.startsWith(`${p}?`))) {
+    return publicApiUrl(endpoint)
+  }
+  return endpoint
+}
+
 export async function apiRequest(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  // Auth must stay on the Next.js origin so login can set the httpOnly cookie for this site.
-  const isAuthEndpoint = endpoint.startsWith('/api/auth/')
-  const url = isAuthEndpoint ? endpoint : `${API_BASE_URL}${endpoint}`
-
+  const url = apiUrl(endpoint)
   const isFormData = options.body instanceof FormData
 
   const headers = new Headers(options.headers as HeadersInit | undefined)
@@ -29,64 +35,32 @@ export async function apiRequest(
     headers.set('Content-Type', 'application/json')
   }
 
-  const defaultOptions: RequestInit = {
+  return fetch(url, {
     credentials: 'include',
+    ...options,
     headers,
-  }
-
-  try {
-    const response = await fetch(url, {
-      ...defaultOptions,
-      ...options,
-      headers,
-    })
-    return response
-  } catch (error: any) {
-    console.error(`API request failed to ${url}:`, error)
-    throw new Error(`Failed to connect to ${endpoint}. Please ensure the server is running.`)
-  }
+  })
 }
 
-/**
- * API endpoints
- */
 export const API_ENDPOINTS = {
-  // Auth
   register: '/api/auth/register',
   login: '/api/auth/login',
   logout: '/api/auth/logout',
   me: '/api/auth/me',
-  
-  // Reports & claims
   foundReports: '/api/reports/found',
-  lostReports: '/api/reports/lost', // legacy / admin only
+  lostReports: '/api/reports/lost',
   claims: '/api/claims',
   documentWatch: '/api/document-watch',
-  
-  // Matches
   matchVerify: (matchId: string) => `/api/matches/${matchId}/verify`,
-  
-  // Verification
   verify: '/api/verify',
-  
-  // Search
   search: (query: string) => `/api/search?q=${encodeURIComponent(query)}`,
-  searchImage: '/api/search/image', // Note: Image search endpoint not yet implemented in backend
-  
-  // Documents
+  searchImage: '/api/search/image',
   latestDocuments: (limit?: number) => `/api/documents/latest${limit ? `?limit=${limit}` : ''}`,
   document: (id: string, type: string) =>
     `/api/documents/${id}?type=${encodeURIComponent(type)}`,
-
-  // Ads
   ads: '/api/ads',
-
   foundReportStatus: (id: string) => `/api/reports/found/${id}/status`,
-
-  // Institutions
   institutions: '/api/institutions',
-
-  // Admin
   adminUsers: '/api/admin/users',
   adminUser: (id: string) => `/api/admin/users/${id}`,
 }

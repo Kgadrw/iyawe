@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { jwtVerify } from 'jose'
+import { getJwtSecretKey } from '@/lib/jwt-secret'
 
 export type JwtUser = {
   userId: string
@@ -7,14 +8,12 @@ export type JwtUser = {
   role: 'USER' | 'INSTITUTION' | 'OFFICER' | 'ADMIN'
 }
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key-change-in-production')
-
 export async function getCurrentUserFromCookie(): Promise<JwtUser | null> {
   const token = (await cookies()).get('token')?.value
   if (!token) return null
 
   try {
-    const { payload } = await jwtVerify(token, secret)
+    const { payload } = await jwtVerify(token, getJwtSecretKey())
     if (!payload.userId || !payload.email || !payload.role) return null
     return {
       userId: String(payload.userId),
@@ -25,4 +24,3 @@ export async function getCurrentUserFromCookie(): Promise<JwtUser | null> {
     return null
   }
 }
-
