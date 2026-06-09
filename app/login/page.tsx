@@ -49,11 +49,6 @@ export default function LoginPage() {
         description: 'Logged in successfully',
       })
 
-      // Store the token for backend requests
-      if (data.token) {
-        localStorage.setItem('auth_token', data.token)
-      }
-
       setLoading(false)
 
       // Redirect to dashboard

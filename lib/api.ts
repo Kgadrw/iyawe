@@ -12,23 +12,13 @@ export async function apiRequest(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  // Auth endpoints should always go through Next.js (same origin) to set cookies properly
-  const isAuthEndpoint = endpoint.startsWith('/api/auth/')
-  const url = isAuthEndpoint ? endpoint : `${API_BASE_URL}${endpoint}`
-  
-  // Don't set Content-Type for FormData - browser will set it with boundary
+  const url = `${API_BASE_URL}${endpoint}`
+
   const isFormData = options.body instanceof FormData
 
   const headers = new Headers(options.headers as HeadersInit | undefined)
   if (!isFormData && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
-  }
-
-  if (!isAuthEndpoint && typeof window !== 'undefined') {
-    const token = localStorage.getItem('auth_token')
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`)
-    }
   }
 
   const defaultOptions: RequestInit = {
