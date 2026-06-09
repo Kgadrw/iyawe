@@ -204,7 +204,7 @@ export default function OfficerAccountPage() {
       <div className="w-full max-w-lg mx-auto text-center py-12">
         <p className="text-sm text-slate-600">
           Unable to load profile.{' '}
-          <Link href="/login" className="text-blue-700 underline">
+          <Link href="/?staffLogin=1" className="text-blue-700 underline">
             Sign in again
           </Link>
         </p>

@@ -1,22 +1,15 @@
 /**
- * Handle logout - clear local storage and token
+ * Handle logout and return to the public homepage.
  */
 export async function handleLogout() {
   try {
-    // Clear token from localStorage
-    localStorage.removeItem('auth_token')
-    
-    // Call logout endpoint to clear server-side session
     await fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'include',
     })
-    
-    // Redirect to login
-    window.location.href = '/login'
+    window.location.href = '/'
   } catch (error) {
     console.error('Logout error:', error)
-    // Still redirect even if API call fails
-    window.location.href = '/login'
+    window.location.href = '/'
   }
 }

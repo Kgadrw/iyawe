@@ -4,10 +4,11 @@ import { Suspense } from 'react'
 import { getCurrentUserFromCookie } from '@/lib/server-auth'
 import { getStaffStationContext } from '@/lib/station-scope'
 import { OfficerPlatformNav } from '@/components/platform/OfficerPlatformNav'
+import { STAFF_LOGIN_PATH } from '@/lib/dashboard-routes'
 
 export default async function OfficerLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUserFromCookie()
-  if (!user) redirect('/login')
+  if (!user) redirect(STAFF_LOGIN_PATH)
   if (user.role !== 'OFFICER' && user.role !== 'ADMIN' && user.role !== 'INSTITUTION') redirect('/dashboard')
 
   const stationCtx = await getStaffStationContext(user.userId)

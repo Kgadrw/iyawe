@@ -1,6 +1,9 @@
 /** Roles allowed to use the staff login flow (not public observers). */
 export const STAFF_LOGIN_ROLES = ['ADMIN', 'OFFICER', 'INSTITUTION'] as const
 
+/** Homepage staff login modal (replaces /login page). */
+export const STAFF_LOGIN_PATH = '/?staffLogin=1'
+
 /** Roles an admin can create from the dashboard. */
 export const ADMIN_CREATABLE_ROLES = ['OFFICER', 'INSTITUTION'] as const
 

@@ -70,6 +70,14 @@ export default function Home() {
   const tabsContainerRef = useRef<HTMLDivElement>(null)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('staffLogin') === '1') {
+      setLoginModalOpen(true)
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
+
   const fetchHandoverPoints = async () => {
     try {
       setHandoverPointsLoading(true)
@@ -1723,8 +1731,10 @@ export default function Home() {
       <Dialog open={loginModalOpen} onOpenChange={setLoginModalOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader className="space-y-0">
-            <DialogTitle>Login</DialogTitle>
-            <DialogDescription className="sr-only">Staff sign in</DialogDescription>
+            <DialogTitle>Staff login</DialogTitle>
+            <DialogDescription className="sr-only">
+              Sign in as admin, officer, or institution
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
