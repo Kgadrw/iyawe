@@ -5,6 +5,12 @@
  */
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
+/** Public endpoints with large payloads (e.g. ads images) — fetch backend directly when configured. */
+export function publicApiUrl(endpoint: string): string {
+  const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? ''
+  return base ? `${base}${endpoint}` : endpoint
+}
+
 /**
  * Make an API request with proper configuration
  */

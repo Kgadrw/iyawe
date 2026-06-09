@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { Search, CheckCircle, Building2, Calendar, Ticket, Compass, MessageCircle, FileQuestion, FileCheck, MapPin, Clock, Filter, LogIn, User, Mail, Phone, Hash, FileText, ArrowLeft, X, ChevronDown, ChevronUp, AlertCircle, Heart, Award, AlertTriangle, Info, Lock, Users, Eye, Menu } from 'lucide-react'
-import { apiRequest, API_ENDPOINTS } from '@/lib/api'
+import { apiRequest, API_ENDPOINTS, publicApiUrl } from '@/lib/api'
 import { flattenSearchResults } from '@/lib/search-results'
 import {
   applyCategoryFilter,
@@ -275,12 +275,14 @@ export default function Home() {
     const loadAds = async () => {
       try {
         setAdsLoading(true)
-        const response = await apiRequest(API_ENDPOINTS.ads)
-        if (response.ok) {
-          const data = await response.json()
-          setBannerAds(data.bannerTop || data.byPlacement?.BANNER_TOP || [])
-          setSidebarAds(data.sidebarRight || data.byPlacement?.SIDEBAR_RIGHT || [])
+        const response = await fetch(publicApiUrl(API_ENDPOINTS.ads))
+        if (!response.ok) {
+          console.error('Ads API error:', response.status)
+          return
         }
+        const data = await response.json()
+        setBannerAds(data.bannerTop || data.byPlacement?.BANNER_TOP || [])
+        setSidebarAds(data.sidebarRight || data.byPlacement?.SIDEBAR_RIGHT || [])
       } catch (error) {
         console.error('Error fetching ads:', error)
       } finally {
