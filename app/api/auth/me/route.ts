@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserFromCookie } from '@/lib/server-auth'
 import { attachAuthCookie, signAuthToken } from '@/lib/auth-token'
-
-const BACKEND_URL = process.env.BACKEND_URL || 'https://iyawe-backend.onrender.com'
+import { fetchBackend } from '@/lib/backend-fetch'
 
 export async function GET() {
   const user = await getCurrentUserFromCookie()
   if (!user) {
     return NextResponse.json({ user: null })
+  }
+
+  try {
+    const backendRes = await fetchBackend('/api/auth/me')
+    if (backendRes.ok) {
+      const data = await backendRes.json()
+      if (data.user) return NextResponse.json(data)
+    }
+  } catch (error) {
+    console.error('Auth /me GET backend error:', error)
   }
 
   return NextResponse.json({
@@ -27,15 +36,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const token = req.cookies.get('token')?.value
     const body = await req.json()
 
-    const backendRes = await fetch(`${BACKEND_URL}/api/auth/me`, {
+    const backendRes = await fetchBackend('/api/auth/me', {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Cookie: `token=${token}` } : {}),
-      },
       body: JSON.stringify(body),
     })
 

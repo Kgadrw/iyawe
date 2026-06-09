@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { attachAuthCookie, signAuthToken } from '@/lib/auth-token'
+import { attachAuthCookie, attachBackendAuthCookie, signAuthToken } from '@/lib/auth-token'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'https://iyawe-backend.onrender.com'
 
@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
       user: data.user,
     })
     attachAuthCookie(res, token)
+    if (typeof data.token === 'string' && data.token) {
+      attachBackendAuthCookie(res, data.token)
+    }
     return res
   } catch (error) {
     console.error('Login proxy error:', error)

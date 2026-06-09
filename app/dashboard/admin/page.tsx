@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { collections } from '@/lib/mongodb'
 import { getCurrentUserFromCookie } from '@/lib/server-auth'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLog, type AuditLog } from '@/lib/audit'
 import { ObjectId } from 'mongodb'
 import {
   Users,
@@ -12,17 +12,34 @@ import {
   ClipboardList,
 } from 'lucide-react'
 
-async function getSummary() {
-  const [users, lost, found, matches, notifications, auditLogs] = await Promise.all([
-    (await collections.users()).countDocuments({}),
-    (await collections.lostReports()).countDocuments({}),
-    (await collections.foundReports()).countDocuments({}),
-    (await collections.matches()).countDocuments({}),
-    (await collections.notifications()).countDocuments({}),
-    (await collections.auditLogs()).countDocuments({}),
-  ])
+const EMPTY_SUMMARY = {
+  users: 0,
+  lost: 0,
+  found: 0,
+  matches: 0,
+  notifications: 0,
+  auditLogs: 0,
+}
 
-  return { users, lost, found, matches, notifications, auditLogs }
+async function getSummary() {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return EMPTY_SUMMARY
+  }
+
+  try {
+    const [users, lost, found, matches, notifications, auditLogs] = await Promise.all([
+      (await collections.users()).countDocuments({}),
+      (await collections.lostReports()).countDocuments({}),
+      (await collections.foundReports()).countDocuments({}),
+      (await collections.matches()).countDocuments({}),
+      (await collections.notifications()).countDocuments({}),
+      (await collections.auditLogs()).countDocuments({}),
+    ])
+
+    return { users, lost, found, matches, notifications, auditLogs }
+  } catch {
+    return EMPTY_SUMMARY
+  }
 }
 
 const STAT_CARDS = [
@@ -74,22 +91,34 @@ export default async function AdminDashboardPage() {
   const user = await getCurrentUserFromCookie()
   const summary = await getSummary()
 
-  if (user) {
-    await writeAuditLog({
-      actorUserId: new ObjectId(user.userId),
-      actorRole: user.role,
-      action: 'ADMIN_VIEW',
-      entityType: 'SYSTEM',
-      entityId: null,
-      message: 'Viewed admin dashboard',
-    })
+  if (user && process.env.DATABASE_URL?.trim()) {
+    try {
+      await writeAuditLog({
+        actorUserId: new ObjectId(user.userId),
+        actorRole: user.role,
+        action: 'ADMIN_VIEW',
+        entityType: 'SYSTEM',
+        entityId: null,
+        message: 'Viewed admin dashboard',
+      })
+    } catch {
+      // Admin stats are optional when DATABASE_URL is not configured on Vercel.
+    }
   }
 
-  const recentLogs = await (await collections.auditLogs())
-    .find({})
-    .sort({ createdAt: -1 })
-    .limit(25)
-    .toArray()
+  let recentLogs: AuditLog[] = []
+
+  if (process.env.DATABASE_URL?.trim()) {
+    try {
+      recentLogs = (await (await collections.auditLogs())
+        .find({})
+        .sort({ createdAt: -1 })
+        .limit(25)
+        .toArray()) as AuditLog[]
+    } catch {
+      recentLogs = []
+    }
+  }
 
   return (
     <div className="space-y-6 sm:space-y-8">

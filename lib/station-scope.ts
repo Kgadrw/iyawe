@@ -1,4 +1,5 @@
 import { ObjectId, Filter } from 'mongodb'
+import { fetchBackend } from './backend-fetch'
 import { collections } from './mongodb'
 
 export type StaffStationContext = {
@@ -12,32 +13,73 @@ export function normalizeStationKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+async function getStaffStationContextFromBackend(
+  userId: string
+): Promise<StaffStationContext | null> {
+  try {
+    const res = await fetchBackend('/api/auth/me')
+    if (!res.ok) return null
+
+    const data = await res.json()
+    const profile = data.user
+    if (!profile) return null
+
+    const stationName =
+      typeof profile.stationName === 'string' && profile.stationName.trim()
+        ? profile.stationName.trim()
+        : null
+
+    return {
+      userId,
+      role: typeof profile.role === 'string' ? profile.role : 'USER',
+      stationName,
+      stationKey: stationName ? normalizeStationKey(stationName) : null,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function getStaffStationContextFromMongo(userId: string): Promise<StaffStationContext | null> {
+  try {
+    const usersCol = await collections.users()
+    const user = await usersCol.findOne({ _id: new ObjectId(userId) })
+    if (!user) return null
+
+    let stationName =
+      typeof user.stationName === 'string' && user.stationName.trim()
+        ? user.stationName.trim()
+        : null
+
+    if (!stationName && user.role === 'INSTITUTION') {
+      const institution = await (await collections.institutions()).findOne({ userId: user._id })
+      if (institution?.name) {
+        stationName = String(institution.name).trim()
+      }
+    }
+
+    return {
+      userId,
+      role: user.role,
+      stationName,
+      stationKey: stationName ? normalizeStationKey(stationName) : null,
+    }
+  } catch {
+    return null
+  }
+}
+
 /** Load station context for an officer or institution account. */
 export async function getStaffStationContext(userId: string): Promise<StaffStationContext> {
-  const usersCol = await collections.users()
-  const user = await usersCol.findOne({ _id: new ObjectId(userId) })
-  if (!user) {
-    return { userId, role: 'USER', stationName: null, stationKey: null }
-  }
+  const fromMongo = process.env.DATABASE_URL?.trim()
+    ? await getStaffStationContextFromMongo(userId)
+    : null
+  if (fromMongo) return fromMongo
 
-  let stationName =
-    typeof user.stationName === 'string' && user.stationName.trim()
-      ? user.stationName.trim()
-      : null
+  const fromBackend = await getStaffStationContextFromBackend(userId)
+  if (fromBackend) return fromBackend
 
-  if (!stationName && user.role === 'INSTITUTION') {
-    const institution = await (await collections.institutions()).findOne({ userId: user._id })
-    if (institution?.name) {
-      stationName = String(institution.name).trim()
-    }
-  }
-
-  return {
-    userId,
-    role: user.role,
-    stationName,
-    stationKey: stationName ? normalizeStationKey(stationName) : null,
-  }
+  return { userId, role: 'USER', stationName: null, stationKey: null }
 }
 
 /** Mongo filter: documents belonging to this staff member's station. */
