@@ -73,11 +73,12 @@ export function ClaimDocumentModal({
         throw new Error(data.error || 'Failed to submit claim')
       }
 
+      const stationName = data.station?.name || 'the station'
       toast({
         title: 'Claim submitted',
-        description: data.emailSent
-          ? `Check ${form.claimantEmail} for collection instructions at ${data.station?.name || 'the station'}.`
-          : `Visit ${data.station?.name || 'the station'} with valid ID to collect your document.`,
+        description: data.emailSent || data.emailQueued
+          ? `Collect at ${stationName} with valid ID. Confirmation is being sent to ${form.claimantEmail}.`
+          : `Visit ${stationName} with valid ID to collect your document.`,
         className: 'border-l-4 border-l-gold-400 bg-white text-blue-900',
       })
 
@@ -232,7 +233,7 @@ export function ClaimDocumentModal({
         </div>
 
         <p className="text-xs text-blue-900/50 leading-relaxed rounded-xl bg-blue-50/80 border border-blue-100 px-3 py-2.5">
-          Bring valid ID to the station listed above. You will receive email instructions if SMTP is configured.
+          Bring valid ID to the station listed above. A confirmation email will be sent to your address.
         </p>
       </form>
     </SubizwaAlertModal>
