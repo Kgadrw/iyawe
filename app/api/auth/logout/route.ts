@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { clearAuthCookies } from '@/lib/auth-token'
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies()
-  cookieStore.delete('token')
-  cookieStore.delete('backend_token')
-
-  return NextResponse.json({ message: 'Logged out successfully' })
+  const res = NextResponse.redirect(new URL('/', req.url))
+  clearAuthCookies(res)
+  return res
 }

@@ -30,3 +30,8 @@ export function attachAuthCookie(response: NextResponse, token: string) {
 export function attachBackendAuthCookie(response: NextResponse, token: string) {
   response.cookies.set('backend_token', token, SESSION_COOKIE_OPTIONS)
 }
+
+export function clearAuthCookies(response: NextResponse) {
+  response.cookies.delete('token')
+  response.cookies.delete('backend_token')
+}
