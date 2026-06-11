@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { LogoutButton } from '@/components/LogoutButton'
 import { AdminPlatformNav } from './AdminPlatformNav'
 type SubizwaAdminShellProps = {
   userEmail: string
@@ -33,14 +34,9 @@ export function SubizwaAdminShell({ userEmail, children }: SubizwaAdminShellProp
                 <span className="rounded-full bg-gold-400/20 border border-gold-400/40 px-2.5 py-0.5 text-[10px] sm:text-xs font-semibold text-gold-400 uppercase tracking-wide">
                   Admin
                 </span>
-                <form action="/api/auth/logout" method="post">
-                  <button
-                    className="rounded-full border-2 border-gold-400 bg-gold-400 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-blue-900 hover:bg-gold-300 transition-colors"
-                    type="submit"
-                  >
-                    Logout
-                  </button>
-                </form>
+                <LogoutButton className="rounded-full border-2 border-gold-400 bg-gold-400 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-blue-900 hover:bg-gold-300 transition-colors">
+                  Logout
+                </LogoutButton>
               </div>
             </div>
 

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { getCurrentUserFromCookie } from '@/lib/server-auth'
 import { getStaffStationContext } from '@/lib/station-scope'
+import { LogoutButton } from '@/components/LogoutButton'
 import { OfficerPlatformNav } from '@/components/platform/OfficerPlatformNav'
 import { STAFF_LOGIN_PATH } from '@/lib/dashboard-routes'
 
@@ -46,14 +47,9 @@ export default async function OfficerLayout({ children }: { children: React.Reac
                 >
                   {user.email}
                 </Link>
-                <form action="/api/auth/logout" method="post">
-                  <button
-                    className="rounded-full border-2 border-gold-400 bg-gold-400 px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-900 hover:bg-gold-300"
-                    type="submit"
-                  >
-                    Logout
-                  </button>
-                </form>
+                <LogoutButton className="rounded-full border-2 border-gold-400 bg-gold-400 px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-900 hover:bg-gold-300">
+                  Logout
+                </LogoutButton>
               </div>
             </div>
 

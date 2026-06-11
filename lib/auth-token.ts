@@ -32,6 +32,11 @@ export function attachBackendAuthCookie(response: NextResponse, token: string) {
 }
 
 export function clearAuthCookies(response: NextResponse) {
-  response.cookies.delete('token')
-  response.cookies.delete('backend_token')
+  for (const name of ['token', 'backend_token'] as const) {
+    response.cookies.set(name, '', {
+      ...SESSION_COOKIE_OPTIONS,
+      maxAge: 0,
+      expires: new Date(0),
+    })
+  }
 }
