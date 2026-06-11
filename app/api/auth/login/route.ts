@@ -26,8 +26,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Sign the session cookie on this app so dashboard auth matches JWT_SECRET here.
-    const token = await signAuthToken({
+    const backendToken =
+      typeof data.token === 'string' && data.token ? data.token : null
+
+    // `token` — verified by Next.js dashboard layouts. `backend_token` — sent to Render APIs.
+    const sessionToken = await signAuthToken({
       userId: String(data.user.id),
       email: String(data.user.email),
       role: String(data.user.role),
@@ -37,9 +40,9 @@ export async function POST(req: NextRequest) {
       message: data.message || 'Login successful',
       user: data.user,
     })
-    attachAuthCookie(res, token)
-    if (typeof data.token === 'string' && data.token) {
-      attachBackendAuthCookie(res, data.token)
+    attachAuthCookie(res, sessionToken)
+    if (backendToken) {
+      attachBackendAuthCookie(res, backendToken)
     }
     return res
   } catch (error) {

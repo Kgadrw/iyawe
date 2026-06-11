@@ -4,7 +4,8 @@ const BACKEND_URL = process.env.BACKEND_URL || 'https://iyawe-backend.onrender.c
 
 /** Server-side fetch to the Render API using the backend session cookie. */
 export async function fetchBackend(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = (await cookies()).get('backend_token')?.value
+  const jar = await cookies()
+  const token = jar.get('backend_token')?.value ?? jar.get('token')?.value
   const headers = new Headers(init.headers)
 
   if (!headers.has('Content-Type') && init.body) {

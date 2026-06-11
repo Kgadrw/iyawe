@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUserFromCookie } from '@/lib/server-auth'
-import { attachAuthCookie, signAuthToken } from '@/lib/auth-token'
+import { attachAuthCookie, attachBackendAuthCookie, signAuthToken } from '@/lib/auth-token'
 import { fetchBackend } from '@/lib/backend-fetch'
 
 export async function GET() {
@@ -46,13 +46,21 @@ export async function PATCH(req: NextRequest) {
     const data = await backendRes.json()
     const res = NextResponse.json(data, { status: backendRes.status })
 
-    if (backendRes.ok && data.user) {
-      const newToken = await signAuthToken({
-        userId: String(data.user.id),
-        email: String(data.user.email),
-        role: String(data.user.role),
-      })
-      attachAuthCookie(res, newToken)
+    if (backendRes.ok) {
+      const setCookie = backendRes.headers.get('set-cookie')
+      const match = setCookie ? /token=([^;]+)/.exec(setCookie) : null
+      const refreshed = match?.[1]
+      if (refreshed) {
+        attachAuthCookie(res, refreshed)
+        attachBackendAuthCookie(res, refreshed)
+      } else if (data.user) {
+        const newToken = await signAuthToken({
+          userId: String(data.user.id),
+          email: String(data.user.email),
+          role: String(data.user.role),
+        })
+        attachAuthCookie(res, newToken)
+      }
     }
 
     return res
