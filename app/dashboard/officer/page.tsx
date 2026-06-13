@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { ReportFoundModal } from '@/components/ReportFoundModal'
+import { OfficerDocumentModal, type OfficerDoc } from '@/components/OfficerDocumentModal'
 import { API_ENDPOINTS, apiRequest } from '@/lib/api'
 import {
   filterOfficerDocuments,
@@ -14,29 +15,8 @@ import {
   type OfficerDocFilter,
 } from '@/lib/officer-document-filters'
 import { cn } from '@/lib/utils'
-import {
-  FileStack,
-  Package,
-  Clock,
-  CheckCircle2,
-  Plus,
-  XCircle,
-} from 'lucide-react'
-import {
-  canMarkCollected,
-  canRejectClaim,
-  foundReportStatusClass,
-  foundReportStatusLabel,
-} from '@/lib/officer-report-status'
-
-type DocReport = {
-  id: string
-  documentType: string
-  documentNumber?: string | null
-  status?: string
-  createdAt?: string
-  foundLocation?: string | null
-}
+import { foundReportStatusClass, foundReportStatusLabel } from '@/lib/officer-report-status'
+import { FileStack, Package, Clock, CheckCircle2, Plus, Users } from 'lucide-react'
 
 function StatCard({
   label,
@@ -85,11 +65,12 @@ function OfficerDashboardContent() {
   const searchParams = useSearchParams()
   const filter = parseOfficerDocFilter(searchParams.get('filter'))
 
-  const [found, setFound] = useState<DocReport[]>([])
+  const [found, setFound] = useState<OfficerDoc[]>([])
   const [loading, setLoading] = useState(true)
   const [reportFoundOpen, setReportFoundOpen] = useState(false)
+  const [manageDoc, setManageDoc] = useState<OfficerDoc | null>(null)
+  const [manageOpen, setManageOpen] = useState(false)
   const [stationName, setStationName] = useState('')
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   const summary = useMemo(() => {
     const handedOver = found.filter((f) => f.status === 'HANDED_OVER').length
@@ -108,7 +89,7 @@ function OfficerDashboardContent() {
 
       if (!foundRes.ok) throw new Error(foundData.error || 'Failed to load found documents')
 
-      setFound((foundData.reports || []) as DocReport[])
+      setFound((foundData.reports || []) as OfficerDoc[])
     } catch (e: unknown) {
       toast({
         title: 'Error',
@@ -139,50 +120,9 @@ function OfficerDashboardContent() {
     })()
   }, [])
 
-  const updateReportStatus = async (
-    reportId: string,
-    status: 'HANDED_OVER' | 'PENDING',
-    note?: string
-  ) => {
-    setUpdatingId(reportId)
-    try {
-      const res = await apiRequest(API_ENDPOINTS.foundReportStatus(reportId), {
-        method: 'PATCH',
-        body: JSON.stringify({ status, ...(note ? { note } : {}) }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to update status')
-
-      toast({
-        title: status === 'HANDED_OVER' ? 'Marked collected' : 'Claim rejected',
-        description: data.message || 'Status updated',
-      })
-      await refresh()
-    } catch (e: unknown) {
-      toast({
-        title: 'Error',
-        description: e instanceof Error ? e.message : 'Failed to update status',
-        variant: 'destructive',
-      })
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  const markCollected = (reportId: string) => {
-    if (!window.confirm('Confirm the document was collected by the verified owner?')) return
-    void updateReportStatus(reportId, 'HANDED_OVER')
-  }
-
-  const rejectClaim = (reportId: string) => {
-    if (
-      !window.confirm(
-        'Reject the pending claim(s)? The document will be available at station for new claims.'
-      )
-    ) {
-      return
-    }
-    void updateReportStatus(reportId, 'PENDING', 'Claim rejected by station staff')
+  const openManage = (doc: OfficerDoc) => {
+    setManageDoc(doc)
+    setManageOpen(true)
   }
 
   const statHref = (f: OfficerDocFilter) =>
@@ -267,16 +207,21 @@ function OfficerDashboardContent() {
             <thead className="bg-slate-50 text-xs uppercase text-slate-600">
               <tr>
                 <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Number</th>
                 <th className="px-4 py-3">Location</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Action</th>
+                <th className="px-4 py-3">Claims</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {displayed.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium">{String(r.documentType).replace(/_/g, ' ')}</td>
-                  <td className="px-4 py-3 text-slate-700">{r.foundLocation || '-'}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {String(r.documentType).replace(/_/g, ' ')}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">{r.documentNumber || '—'}</td>
+                  <td className="px-4 py-3 text-slate-700">{r.foundLocation || '—'}</td>
                   <td className="px-4 py-3">
                     <span
                       className={cn(
@@ -287,41 +232,26 @@ function OfficerDashboardContent() {
                       {foundReportStatusLabel(r.status)}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    {(r.pendingClaimCount ?? 0) > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-blue-800">
+                        <Users className="h-3.5 w-3.5" />
+                        {r.pendingClaimCount} pending
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      {canRejectClaim(r.status) ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={updatingId === r.id}
-                          className="text-red-700 border-red-200 hover:bg-red-50"
-                          onClick={() => rejectClaim(r.id)}
-                        >
-                          <XCircle className="h-3.5 w-3.5 mr-1" />
-                          Reject
-                        </Button>
-                      ) : null}
-                      {canMarkCollected(r.status) ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={updatingId === r.id}
-                          className="text-green-700 border-green-200 hover:bg-green-50"
-                          onClick={() => markCollected(r.id)}
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                          Mark collected
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
-                    </div>
+                    <Button variant="outline" size="sm" onClick={() => openManage(r)}>
+                      Manage
+                    </Button>
                   </td>
                 </tr>
               ))}
               {!loading && displayed.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-600" colSpan={4}>
+                  <td className="px-4 py-6 text-slate-600" colSpan={6}>
                     {found.length === 0
                       ? 'No documents registered yet.'
                       : 'No documents match this filter.'}
@@ -339,6 +269,13 @@ function OfficerDashboardContent() {
           setReportFoundOpen(open)
           if (!open) refresh()
         }}
+      />
+
+      <OfficerDocumentModal
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        document={manageDoc}
+        onUpdated={refresh}
       />
     </div>
   )

@@ -60,6 +60,8 @@ export const API_ENDPOINTS = {
     `/api/documents/${id}?type=${encodeURIComponent(type)}`,
   ads: '/api/ads',
   foundReportStatus: (id: string) => `/api/reports/found/${id}/status`,
+  foundReport: (id: string) => `/api/reports/found/${id}`,
+  foundReportClaims: (id: string) => `/api/reports/found/${id}/claims`,
   institutions: '/api/institutions',
   adminUsers: '/api/admin/users',
   adminUser: (id: string) => `/api/admin/users/${id}`,
