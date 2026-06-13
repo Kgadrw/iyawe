@@ -20,7 +20,14 @@ import {
   Clock,
   CheckCircle2,
   Plus,
+  XCircle,
 } from 'lucide-react'
+import {
+  canMarkCollected,
+  canRejectClaim,
+  foundReportStatusClass,
+  foundReportStatusLabel,
+} from '@/lib/officer-report-status'
 
 type DocReport = {
   id: string
@@ -82,6 +89,7 @@ function OfficerDashboardContent() {
   const [loading, setLoading] = useState(true)
   const [reportFoundOpen, setReportFoundOpen] = useState(false)
   const [stationName, setStationName] = useState('')
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   const summary = useMemo(() => {
     const handedOver = found.filter((f) => f.status === 'HANDED_OVER').length
@@ -131,16 +139,24 @@ function OfficerDashboardContent() {
     })()
   }, [])
 
-  const markFoundHandover = async (reportId: string) => {
+  const updateReportStatus = async (
+    reportId: string,
+    status: 'HANDED_OVER' | 'PENDING',
+    note?: string
+  ) => {
+    setUpdatingId(reportId)
     try {
       const res = await apiRequest(API_ENDPOINTS.foundReportStatus(reportId), {
         method: 'PATCH',
-        body: JSON.stringify({ status: 'HANDED_OVER' }),
+        body: JSON.stringify({ status, ...(note ? { note } : {}) }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to update status')
 
-      toast({ title: 'Updated', description: 'Document marked as collected by owner.' })
+      toast({
+        title: status === 'HANDED_OVER' ? 'Marked collected' : 'Claim rejected',
+        description: data.message || 'Status updated',
+      })
       await refresh()
     } catch (e: unknown) {
       toast({
@@ -148,7 +164,25 @@ function OfficerDashboardContent() {
         description: e instanceof Error ? e.message : 'Failed to update status',
         variant: 'destructive',
       })
+    } finally {
+      setUpdatingId(null)
     }
+  }
+
+  const markCollected = (reportId: string) => {
+    if (!window.confirm('Confirm the document was collected by the verified owner?')) return
+    void updateReportStatus(reportId, 'HANDED_OVER')
+  }
+
+  const rejectClaim = (reportId: string) => {
+    if (
+      !window.confirm(
+        'Reject the pending claim(s)? The document will be available at station for new claims.'
+      )
+    ) {
+      return
+    }
+    void updateReportStatus(reportId, 'PENDING', 'Claim rejected by station staff')
   }
 
   const statHref = (f: OfficerDocFilter) =>
@@ -243,16 +277,45 @@ function OfficerDashboardContent() {
                 <tr key={r.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{String(r.documentType).replace(/_/g, ' ')}</td>
                   <td className="px-4 py-3 text-slate-700">{r.foundLocation || '-'}</td>
-                  <td className="px-4 py-3">{r.status || 'PENDING'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={(r.status || 'PENDING') === 'HANDED_OVER'}
-                      onClick={() => markFoundHandover(r.id)}
+                  <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                        foundReportStatusClass(r.status)
+                      )}
                     >
-                      Mark collected
-                    </Button>
+                      {foundReportStatusLabel(r.status)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {canRejectClaim(r.status) ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updatingId === r.id}
+                          className="text-red-700 border-red-200 hover:bg-red-50"
+                          onClick={() => rejectClaim(r.id)}
+                        >
+                          <XCircle className="h-3.5 w-3.5 mr-1" />
+                          Reject
+                        </Button>
+                      ) : null}
+                      {canMarkCollected(r.status) ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updatingId === r.id}
+                          className="text-green-700 border-green-200 hover:bg-green-50"
+                          onClick={() => markCollected(r.id)}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                          Mark collected
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
