@@ -531,13 +531,10 @@ export default function Home() {
   ]
 
   const openClaimModal = (doc: ClaimableDocument) => {
-    if (doc.status && doc.status !== 'PENDING') {
+    if (doc.status === 'HANDED_OVER') {
       toast({
         title: 'Not available',
-        description:
-          doc.status === 'HANDED_OVER'
-            ? 'This document has already been collected.'
-            : 'A claim is already pending for this document.',
+        description: 'This document has already been collected.',
       })
       return
     }
@@ -1182,7 +1179,7 @@ export default function Home() {
                                     </span>
                                     {doc.status === 'CLAIM_PENDING' && (
                                       <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded-full">
-                                        Claim pending
+                                        Open for claims
                                       </span>
                                     )}
                                     {doc.status === 'HANDED_OVER' && (
@@ -1508,7 +1505,7 @@ export default function Home() {
                                 </span>
                                   {doc.status === 'CLAIM_PENDING' && (
                                     <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded-full">
-                                      Claim pending
+                                      Open for claims
                                     </span>
                                   )}
                                   {doc.status === 'HANDED_OVER' && (

@@ -110,7 +110,7 @@ export function ClaimDocumentModal({
       variant="claim"
       maxWidth="md"
       title="Claim this document"
-      description="Confirm this is yours. The station will verify your details before handover."
+      description="Confirm this is yours. Others may also claim the same document — the station will verify the rightful owner."
       highlight={
         <div className="space-y-2">
           <p className="font-medium text-white flex items-center gap-2">
