@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { apiRequest, API_ENDPOINTS } from '@/lib/api'
+import { maxLostDateInputValue, validateLostDateNotFuture } from '@/lib/lost-date'
 import {
   SubizwaAlertModal,
   alertFieldClass,
@@ -54,6 +55,12 @@ export function DocumentWatchModal({ open, onOpenChange }: DocumentWatchModalPro
     e.preventDefault()
     if (!form.documentType) {
       toast({ title: 'Select document type', variant: 'destructive' })
+      return
+    }
+
+    const lostDateError = validateLostDateNotFuture(form.lostDate)
+    if (lostDateError) {
+      toast({ title: 'Invalid date', description: lostDateError, variant: 'destructive' })
       return
     }
 
@@ -185,6 +192,7 @@ export function DocumentWatchModal({ open, onOpenChange }: DocumentWatchModalPro
             <Input
               id="watchLostDate"
               type="date"
+              max={maxLostDateInputValue()}
               value={form.lostDate}
               onChange={(e) => setForm({ ...form, lostDate: e.target.value })}
               className={alertFieldClass}

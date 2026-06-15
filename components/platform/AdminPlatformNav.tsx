@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Eye, Home } from 'lucide-react'
+import { LayoutDashboard, Users, Eye, Home, FileQuestion, Clock } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/admin/staff', label: 'Staff accounts', icon: Users, exact: false },
+  { href: '/dashboard/admin/lost', label: 'Lost & waiting', icon: FileQuestion, exact: false },
+  { href: '/dashboard/admin/claims', label: 'Claims', icon: Clock, exact: false },
   { href: '/dashboard/officer', label: 'Officer view', icon: Eye, exact: false },
   { href: '/', label: 'Public site', icon: Home, exact: false },
 ] as const

@@ -65,4 +65,8 @@ export const API_ENDPOINTS = {
   institutions: '/api/institutions',
   adminUsers: '/api/admin/users',
   adminUser: (id: string) => `/api/admin/users/${id}`,
+  adminLostReports: '/api/admin/reports/lost',
+  adminFoundReports: '/api/admin/reports/found',
+  adminClaims: '/api/admin/claims',
+  adminWaiting: '/api/admin/waiting',
 }

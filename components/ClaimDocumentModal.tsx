@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { apiRequest } from '@/lib/api'
+import { maxLostDateInputValue, validateLostDateNotFuture } from '@/lib/lost-date'
 import {
   SubizwaAlertModal,
   alertFieldClass,
@@ -53,6 +54,12 @@ export function ClaimDocumentModal({
     e.preventDefault()
     if (!document?.id) return
 
+    const lostDateError = validateLostDateNotFuture(form.lostDate)
+    if (lostDateError) {
+      toast({ title: 'Invalid date', description: lostDateError, variant: 'destructive' })
+      return
+    }
+
     setLoading(true)
     try {
       const res = await apiRequest('/api/claims', {
@@ -76,9 +83,11 @@ export function ClaimDocumentModal({
       const stationName = data.station?.name || 'the station'
       toast({
         title: 'Claim submitted',
-        description: data.emailSent || data.emailQueued
-          ? `Collect at ${stationName} with valid ID. Confirmation is being sent to ${form.claimantEmail}.`
-          : `Visit ${stationName} with valid ID to collect your document.`,
+        description: data.emailSent
+          ? `Collect at ${stationName} with valid ID. A confirmation was sent to ${form.claimantEmail}.`
+          : data.emailError
+            ? `${data.emailError} Visit ${stationName} with valid ID.`
+            : `Visit ${stationName} with valid ID to collect your document.`,
         className: 'border-l-4 border-l-gold-400 bg-white text-blue-900',
       })
 
@@ -199,6 +208,7 @@ export function ClaimDocumentModal({
             <Input
               id="lostDate"
               type="date"
+              max={maxLostDateInputValue()}
               value={form.lostDate}
               onChange={(e) => setForm({ ...form, lostDate: e.target.value })}
               className={`${alertFieldClass} pl-9`}

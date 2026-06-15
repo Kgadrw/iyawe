@@ -14,6 +14,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { apiRequest, API_ENDPOINTS } from '@/lib/api'
+import { maxLostDateInputValue, validateLostDateNotFuture } from '@/lib/lost-date'
 
 const DOCUMENT_TYPES = [
   { value: 'ID_CARD', label: 'ID Card' },
@@ -42,6 +43,7 @@ export function ReportLostModal({ open, onOpenChange, variant = 'public' }: Repo
     documentNumber: '',
     description: '',
     lostLocation: '',
+    lostDate: '',
     reporterName: '',
     reporterEmail: '',
     reporterPhone: '',
@@ -81,6 +83,7 @@ export function ReportLostModal({ open, onOpenChange, variant = 'public' }: Repo
       documentNumber: '',
       description: '',
       lostLocation: '',
+      lostDate: '',
       reporterName: '',
       reporterEmail: '',
       reporterPhone: '',
@@ -89,6 +92,13 @@ export function ReportLostModal({ open, onOpenChange, variant = 'public' }: Repo
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+
+    const lostDateError = validateLostDateNotFuture(formData.lostDate)
+    if (lostDateError) {
+      toast({ title: 'Invalid date', description: lostDateError, variant: 'destructive' })
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -98,6 +108,7 @@ export function ReportLostModal({ open, onOpenChange, variant = 'public' }: Repo
       }
       if (formData.documentNumber.trim()) payload.documentNumber = formData.documentNumber.trim()
       if (formData.description.trim()) payload.description = formData.description.trim()
+      if (formData.lostDate.trim()) payload.lostDate = formData.lostDate.trim()
 
       if (!useStaffForm) {
         payload.reporterName = formData.reporterName
@@ -225,6 +236,18 @@ export function ReportLostModal({ open, onOpenChange, variant = 'public' }: Repo
               onChange={(e) => setFormData({ ...formData, lostLocation: e.target.value })}
               required
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="lostDate">When it was lost (optional)</Label>
+            <Input
+              id="lostDate"
+              type="date"
+              max={maxLostDateInputValue()}
+              value={formData.lostDate}
+              onChange={(e) => setFormData({ ...formData, lostDate: e.target.value })}
+            />
+            <p className="text-xs text-gray-500">Cannot be a future date.</p>
           </div>
 
           <div className="space-y-1.5">

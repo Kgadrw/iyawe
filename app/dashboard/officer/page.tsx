@@ -233,11 +233,21 @@ function OfficerDashboardContent() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {(r.pendingClaimCount ?? 0) > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-blue-800">
-                        <Users className="h-3.5 w-3.5" />
-                        {r.pendingClaimCount} pending
-                      </span>
+                    {(r.claimCount ?? r.pendingClaimCount ?? 0) > 0 ? (
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center gap-1 text-xs text-blue-800">
+                          <Users className="h-3.5 w-3.5" />
+                          {(r.pendingClaimCount ?? 0) > 0
+                            ? `${r.pendingClaimCount} pending`
+                            : `${r.claimCount} claim${(r.claimCount ?? 0) === 1 ? '' : 's'}`}
+                        </span>
+                        {(r.recentClaimants || []).slice(0, 2).map((c, i) => (
+                          <p key={`${c.email}-${i}`} className="text-xs text-slate-600 truncate max-w-[180px]">
+                            {c.name}
+                            <span className="text-slate-400"> · {c.status}</span>
+                          </p>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-xs text-slate-400">—</span>
                     )}

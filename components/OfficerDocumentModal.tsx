@@ -46,6 +46,8 @@ export type OfficerDoc = {
   foundLocation?: string | null
   status?: string
   pendingClaimCount?: number
+  claimCount?: number
+  recentClaimants?: Array<{ name: string; email: string; status: string }>
 }
 
 type ClaimRow = {

@@ -59,10 +59,10 @@ const STAT_CARDS = [
   },
   {
     key: 'lost',
-    label: 'Lost reports (legacy)',
+    label: 'Lost & waiting',
     icon: FileQuestion,
     color: 'text-orange-600 bg-orange-50',
-    href: '/dashboard/officer',
+    href: '/dashboard/admin/lost',
   },
   {
     key: 'matches',
