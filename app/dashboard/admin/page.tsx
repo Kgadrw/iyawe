@@ -59,7 +59,7 @@ const STAT_CARDS = [
   },
   {
     key: 'lost',
-    label: 'Lost & waiting',
+    label: 'Lost (waiting)',
     icon: FileQuestion,
     color: 'text-orange-600 bg-orange-50',
     href: '/dashboard/admin/lost',
