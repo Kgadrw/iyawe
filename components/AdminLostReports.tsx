@@ -14,12 +14,42 @@ type WaitingEntry = {
   contactPhone?: string | null
   documentType: string
   documentNumber?: string | null
+  description?: string | null
   lostLocation?: string | null
   lostDate?: string | null
   status?: string
   matchCount?: number
   waitingLabel: string
   createdAt?: string
+}
+
+function formatDocType(value?: string) {
+  return value?.replace(/_/g, ' ') || '—'
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '—'
+  return new Date(value).toLocaleDateString('en-GB', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('en-GB', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function cellOrDash(value?: string | null) {
+  const trimmed = value?.trim()
+  return trimmed || '—'
 }
 
 export function AdminLostReports() {
@@ -100,45 +130,58 @@ export function AdminLostReports() {
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-blue-900/60">
               <tr>
-                <th className="px-4 py-3 sm:px-6">Person</th>
-                <th className="px-4 py-3">Lost document</th>
+                <th className="px-4 py-3 sm:px-6">Created</th>
+                <th className="px-4 py-3">Person</th>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Phone</th>
+                <th className="px-4 py-3">Document</th>
+                <th className="px-4 py-3">Doc number</th>
+                <th className="px-4 py-3">Lost location</th>
                 <th className="px-4 py-3">Date lost</th>
+                <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3">How registered</th>
                 <th className="px-4 py-3">Waiting status</th>
-                <th className="px-4 py-3">Registered</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td className="px-6 py-10 text-center text-blue-900/50" colSpan={6}>
+                  <td className="px-6 py-10 text-center text-blue-900/50" colSpan={11}>
                     Loading…
                   </td>
                 </tr>
               ) : null}
               {!loading &&
                 waiting.map((r) => (
-                  <tr key={`${r.source}-${r.id}`} className="hover:bg-blue-50/40">
-                    <td className="px-4 py-3 sm:px-6">
-                      <p className="font-medium text-blue-900">{r.contactName}</p>
-                      {r.contactEmail ? (
-                        <p className="text-xs text-blue-900/50">{r.contactEmail}</p>
-                      ) : null}
-                      {r.contactPhone ? (
-                        <p className="text-xs text-blue-900/40">{r.contactPhone}</p>
-                      ) : null}
+                  <tr key={`${r.source}-${r.id}`} className="hover:bg-blue-50/40 align-top">
+                    <td className="px-4 py-3 sm:px-6 text-blue-900/70 whitespace-nowrap">
+                      {formatDateTime(r.createdAt)}
                     </td>
-                    <td className="px-4 py-3 text-blue-900/80">
-                      <p className="font-medium">{String(r.documentType).replace(/_/g, ' ')}</p>
-                      {r.documentNumber ? (
-                        <p className="text-xs text-blue-900/50">#{r.documentNumber}</p>
-                      ) : null}
-                      {r.lostLocation ? (
-                        <p className="text-xs text-blue-900/40">{r.lostLocation}</p>
-                      ) : null}
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-blue-900">{r.contactName}</p>
+                    </td>
+                    <td className="px-4 py-3 text-blue-900/70 text-xs">
+                      {cellOrDash(r.contactEmail)}
+                    </td>
+                    <td className="px-4 py-3 text-blue-900/70 text-xs whitespace-nowrap">
+                      {cellOrDash(r.contactPhone)}
+                    </td>
+                    <td className="px-4 py-3 text-blue-900/80 whitespace-nowrap">
+                      {formatDocType(r.documentType)}
+                    </td>
+                    <td className="px-4 py-3 text-blue-900/70 text-xs">
+                      {cellOrDash(r.documentNumber)}
+                    </td>
+                    <td className="px-4 py-3 text-blue-900/70 text-xs max-w-[10rem]">
+                      {cellOrDash(r.lostLocation)}
                     </td>
                     <td className="px-4 py-3 text-blue-900/70 whitespace-nowrap">
-                      {r.lostDate ? new Date(r.lostDate).toLocaleDateString() : '—'}
+                      {formatDate(r.lostDate)}
+                    </td>
+                    <td className="px-4 py-3 text-blue-900/70 text-xs max-w-[14rem]">
+                      <span className="line-clamp-3" title={r.description || undefined}>
+                        {cellOrDash(r.description)}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -157,14 +200,11 @@ export function AdminLostReports() {
                         {r.waitingLabel}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-blue-900/70 whitespace-nowrap">
-                      {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}
-                    </td>
                   </tr>
                 ))}
               {!loading && waiting.length === 0 ? (
                 <tr>
-                  <td className="px-6 py-10 text-center text-blue-900/50" colSpan={6}>
+                  <td className="px-6 py-10 text-center text-blue-900/50" colSpan={11}>
                     No users are currently waiting for a lost document to be listed.
                   </td>
                 </tr>
